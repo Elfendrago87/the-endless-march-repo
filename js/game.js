@@ -3,13 +3,15 @@
 
 const STATE = {
   START: 'START',
-  WAVE_INTRO: 'WAVE_INTRO',     // "NEXT_WAVE": banner, player can move
+  ADVANCE: 'ADVANCE',           // walking the road to the next wave (GO ->)
+  WAVE_INTRO: 'WAVE_INTRO',     // camera locked, banner, player can move
   WAVE: 'WAVE',
   FINAL_WAVE: 'FINAL_WAVE',
   WAVE_COMPLETE: 'WAVE_COMPLETE',
+  REST: 'REST',                 // night camp: thieves come for your sack
   DOOR: 'DOOR',
   ENDING: 'ENDING',
-  PLAYER_DEAD: 'PLAYER_DEAD',
+  PLAYER_DEAD: 'PLAYER_DEAD',   // out of lives: the run ends
 };
 
 const FONT = '"Helvetica Neue", Helvetica, Arial, sans-serif';
@@ -19,27 +21,32 @@ class Game {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
+    this.stage = new Stage();
     this.player = new Player(this);
     this.enemyPool = new Pool(() => new Enemy(), 48);
     this.enemies = this.enemyPool.items;
     this.waves = new WaveManager(this);
-    this.spawnUsed = new Map();
-    this.cam = { x: 0, y: 0, zoom: 1, look: 0 };
+    this.cam = { x: 0, y: 0, zoom: ZOOM };
+    this.drawList = [];
+    this.thiefTimers = [];
+    this.spawnSide = 1;
 
     const q = new URLSearchParams(location.search);
     this.debug = q.has('debug');
     this.god = q.has('god');
-    this.startWave = clamp((parseInt(q.get('wave'), 10) || 1) - 1, 0, WAVES.length - 1);
+    this.firstWave = clamp((parseInt(q.get('wave'), 10) || 1) - 1, 0, WAVES.length - 1);
 
     this.time = 0;
     this.paused = false;
     this.hitstopT = 0;
     this.slowT = 0; this.slowScale = 1;
-    this.fade = null;
     this.fadeIn = 1;
     this.hurtFlash = 0;
     this.hudAlpha = 1;
     this.waveIndex = 0;
+    this.locked = true; this.lockX = 0;
+    this.night = 0; this.nightTarget = 0;
+    this.magic = null;
     this.doorRise = 0; this.doorOpen = 0; this.whiteout = 0; this.endWalk = false; this.endT = 0;
     this.chimed = false;
 
@@ -48,7 +55,7 @@ class Game {
     Input.init(canvas);
     Input.onRawKey = (code) => {
       if (this.debug && code === 'KeyN') this.debugClearWave();
-      if (this.debug && code === 'KeyH') this.player.hp = PLAYER_CFG.maxHp;
+      if (this.debug && code === 'KeyH') { this.player.hp = PLAYER_CFG.maxHp; this.player.pots = PLAYER_CFG.maxPots; }
       if (code === 'KeyM' && Sound.out) Sound.out.gain.value = Sound.out.gain.value > 0 ? 0 : 0.5;
     };
     window.addEventListener('resize', () => this.resize());
@@ -92,11 +99,18 @@ class Game {
     requestAnimationFrame((t) => this.loop(t));
   }
 
+  get viewW() { return VIEW_W / this.cam.zoom; }
+  get enemyMinX() { return this.locked ? this.cam.x - 150 : 0; }
+  get enemyMaxX() { return this.locked ? this.cam.x + this.viewW + 150 : this.stage.length; }
+  get fightMinX() { return this.locked ? this.cam.x + 4 : 0; }
+  get fightMaxX() { return this.locked ? this.cam.x + this.viewW - 4 : this.stage.length; }
+
   setState(s) { this.state = s; this.stateT = 0; }
 
   get combatAllowed() {
     const s = this.state;
-    return s === STATE.WAVE || s === STATE.FINAL_WAVE || s === STATE.WAVE_INTRO || s === STATE.WAVE_COMPLETE;
+    return s === STATE.WAVE || s === STATE.FINAL_WAVE || s === STATE.WAVE_INTRO ||
+      s === STATE.WAVE_COMPLETE || s === STATE.ADVANCE || s === STATE.REST;
   }
 
   pausable() { return this.combatAllowed || this.state === STATE.DOOR; }
@@ -105,49 +119,59 @@ class Game {
   slowmo(scale, t) { this.slowScale = scale; this.slowT = t; }
 
   // ------------------------------------------------------------ flow
-  toTitle() {
+  resetWorld() {
     Sound.droneStop(0.1);
-    this.loadArena('hall');
-    this.player.reset(this.arena.start.x, this.arena.start.y);
-    this.player.control = false;
     this.enemyPool.clear();
     Projectiles.clear();
+    Items.clear();
     FX.clear();
     this.waves.def = null;
+    this.magic = null;
+    this.night = 0; this.nightTarget = 0;
     this.whiteout = 0;
+    this.doorRise = 0; this.doorOpen = 0; this.endWalk = false; this.endT = 0;
+    this.thiefTimers.length = 0;
+    this.slowT = 0;
     this.fadeIn = 1;
+  }
+
+  toTitle() {
+    this.resetWorld();
+    this.player.reset(200, DEPTH * 0.55);
+    this.player.control = false;
+    this.locked = true; this.lockX = 0;
     this.hudAlpha = 0;
     this.setState(STATE.START);
     this.updateCamera(0, true);
   }
 
   startRun() {
-    Sound.droneStop(0.1);
-    this.enemyPool.clear();
-    Projectiles.clear();
-    FX.clear();
-    const i = this.startWave;
-    this.loadArena(WAVES[i].arena);
-    this.player.reset(this.arena.start.x, this.arena.start.y);
-    this.doorRise = 0; this.doorOpen = 0; this.whiteout = 0; this.endWalk = false; this.endT = 0;
+    this.resetWorld();
+    const i = this.firstWave;
+    const lock = WAVES[i].lockX;
+    this.player.reset(lock + 140, DEPTH * 0.55);
     this.hudAlpha = 1;
-    this.fadeIn = 1;
-    this.slowT = 0;
-    this.updateCamera(0, true);
+    this.locked = true; this.lockX = lock;
+    this.cam.x = lock;
     this.beginWaveIntro(i);
-  }
-
-  loadArena(key) {
-    this.arena = new Arena(key);
-    this.spawnUsed.clear();
-    Projectiles.clear();
+    this.updateCamera(0, true);
   }
 
   beginWaveIntro(i) {
     this.waveIndex = i;
     this.waves.def = null;
+    this.locked = true;
+    this.lockX = WAVES[i].lockX;
     this.setState(STATE.WAVE_INTRO);
     Sound.waveStart(!!WAVES[i].final);
+  }
+
+  startWave() {
+    const def = WAVES[this.waveIndex];
+    this.waves.start(this.waveIndex);
+    this.thiefTimers.length = 0;
+    for (let k = 0; k < (def.thieves || 0); k++) this.thiefTimers.push(rand(4, 14));
+    this.setState(def.final ? STATE.FINAL_WAVE : STATE.WAVE);
   }
 
   onWaveCleared() {
@@ -155,28 +179,25 @@ class Game {
     this.setState(STATE.WAVE_COMPLETE);
     this.slowmo(0.3, 0.7);
     Sound.waveClear();
-    for (const p of Projectiles.pool.items) if (p.active) Projectiles.kill(p, false);
+    for (const p of Projectiles.pool.items) if (p.active) Projectiles.kill(p);
     if (!final) this.player.hp = Math.min(PLAYER_CFG.maxHp, this.player.hp + PLAYER_CFG.healBetweenWaves);
   }
 
-  advanceWave() {
-    const next = this.waveIndex + 1;
-    if (WAVES[next].arena !== this.arena.key) {
-      this.startFade(1.2, () => {
-        this.loadArena(WAVES[next].arena);
-        this.player.place(this.arena.start.x, this.arena.start.y);
-        this.player.facing = 1;
-        this.updateCamera(0, true);
-        this.beginWaveIntro(next);
-      });
-    } else {
-      this.beginWaveIntro(next);
-    }
+  startAdvance() {
+    this.locked = false;
+    this.setState(STATE.ADVANCE);
   }
 
-  startFade(dur, onMid) { this.fade = { t: 0, dur, onMid, fired: false }; }
+  startRest() {
+    this.setState(STATE.REST);
+    this.nightTarget = 1;
+    this.thiefTimers.length = 0;
+    this.thiefTimers.push(1.8, 3.6, 5.6);
+    Sound.chime();
+  }
 
   startDoor() {
+    this.locked = false;
     this.setState(STATE.DOOR);
     this.doorRise = 0; this.doorOpen = 0; this.endWalk = false; this.endT = 0; this.whiteout = 0;
     this.player.speedMul = 1;
@@ -194,17 +215,9 @@ class Game {
     this.time += dt;
     this.fadeIn = Math.max(0, this.fadeIn - dt * 1.6);
     this.hurtFlash = Math.max(0, this.hurtFlash - dt * 3);
+    this.night = approach(this.night, this.nightTarget, dt * 0.8);
     const hudTarget = (this.state === STATE.START || this.state === STATE.DOOR || this.state === STATE.ENDING) ? 0 : 1;
     this.hudAlpha = approach(this.hudAlpha, hudTarget, dt * 1.5);
-
-    if (this.fade) {
-      const f = this.fade;
-      f.t += dt;
-      if (!f.fired && f.t >= f.dur / 2) { f.fired = true; f.onMid(); }
-      if (f.t >= f.dur) this.fade = null;
-      this.updateCamera(dt, false);
-      return;
-    }
 
     if (this.hitstopT > 0) {
       this.hitstopT -= dt;
@@ -223,28 +236,51 @@ class Game {
         if (Input.anyPressed) this.startRun();
         break;
 
+      case STATE.ADVANCE: {
+        this.updateWorld(sdt);
+        const next = WAVES[this.waveIndex + 1];
+        if (this.cam.x >= next.lockX - 0.5) {
+          this.cam.x = next.lockX;
+          this.beginWaveIntro(this.waveIndex + 1);
+        }
+        break;
+      }
+
       case STATE.WAVE_INTRO:
         this.updateWorld(sdt);
-        if (this.stateT >= 1.4) {
-          this.waves.start(this.waveIndex);
-          this.setState(WAVES[this.waveIndex].final ? STATE.FINAL_WAVE : STATE.WAVE);
-        }
+        if (this.stateT >= 1.4) this.startWave();
         break;
 
       case STATE.WAVE:
       case STATE.FINAL_WAVE:
         this.updateWorld(sdt);
         if (this.state === STATE.PLAYER_DEAD) break;
-        this.waves.update(sdt);
+        if (!this.magic) this.waves.update(sdt);
+        this.updateThieves(sdt);
         if (this.waves.complete) this.onWaveCleared();
         break;
 
-      case STATE.WAVE_COMPLETE:
+      case STATE.WAVE_COMPLETE: {
         this.updateWorld(sdt);
         if (this.state === STATE.PLAYER_DEAD) break;
-        if (WAVES[this.waveIndex].final) {
-          if (this.stateT >= 2.2) this.startDoor();
-        } else if (this.stateT >= 1.9) this.advanceWave();
+        const def = WAVES[this.waveIndex];
+        if (this.stateT >= (def.final ? 2.2 : 1.9)) {
+          if (def.final) this.startDoor();
+          else if (def.rest) this.startRest();
+          else this.startAdvance();
+        }
+        break;
+      }
+
+      case STATE.REST:
+        this.updateWorld(sdt);
+        this.updateThieves(sdt);
+        if (this.stateT >= 11) {
+          this.nightTarget = 0;
+          this.player.hp = Math.min(PLAYER_CFG.maxHp, this.player.hp + PLAYER_CFG.restHeal);
+          FX.ring(this.player.cx, this.player.screenY - 25, 8, 70, 0.6, false, 2);
+          this.startAdvance();
+        }
         break;
 
       case STATE.DOOR:
@@ -267,100 +303,309 @@ class Game {
 
   updateWorld(dt) {
     this.player.update(dt);
-    const E = this.enemies;
-    for (let i = 0; i < E.length; i++) if (E[i].active) E[i].update(dt, this);
-    this.separateEnemies();
+    if (this.magic) {
+      // the world holds its breath while the spell is cast
+      this.updateMagic(dt);
+    } else {
+      const E = this.enemies;
+      for (let i = 0; i < E.length; i++) if (E[i].active) E[i].update(dt, this);
+      this.separateEnemies();
+      this.resolveThrownBodies();
+      Projectiles.update(dt, this);
+    }
     this.resolvePlayerHits();
-    Projectiles.update(dt, this);
+    Items.update(dt, this);
     FX.update(dt);
   }
 
   separateEnemies() {
     const E = this.enemies;
+    const busy = (e) => !e.active || e.ai === 'flyer' || e.ai === 'thief' || e.untouchable || e.state === 'shadow' || e.state === 'attack';
     for (let i = 0; i < E.length; i++) {
       const a = E[i];
-      if (!a.active || a.ai === 'flyer' || a.state === 'shadow' || a.state === 'attack') continue;
+      if (busy(a)) continue;
       for (let j = i + 1; j < E.length; j++) {
         const b = E[j];
-        if (!b.active || b.ai === 'flyer' || b.state === 'shadow' || b.state === 'attack') continue;
-        if (Math.abs(a.bottom - b.bottom) > 24) continue;
+        if (busy(b)) continue;
+        if (Math.abs(a.z - b.z) > 12) continue;
         const ov = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
         if (ov <= 0) continue;
         const push = Math.min(ov, 6) * 0.5;
         if (a.cx < b.cx) { a.x -= push; b.x += push; } else { a.x += push; b.x -= push; }
-        const minX = 40, maxX = this.arena.width - 40;
-        a.x = clamp(a.x, minX, maxX - a.w);
-        b.x = clamp(b.x, minX, maxX - b.w);
+        const dz = a.z < b.z ? -0.6 : 0.6;
+        a.z = clamp(a.z + dz, 0, DEPTH);
+        b.z = clamp(b.z - dz, 0, DEPTH);
       }
     }
+  }
+
+  requestToken() {
+    const limit = (this.waves.def && this.waves.def.tokens) || 2;
+    let held = 0;
+    for (const e of this.enemies) if (e.active && e.hasToken) held++;
+    return held < limit;
   }
 
   resolvePlayerHits() {
     const p = this.player;
     if (!p.hitActive) return;
     const a = p.atk, hb = p.hitBox;
-    let hits = 0, blocked = false, below = false;
+    let hits = 0, blocked = false;
     const E = this.enemies;
     for (let i = 0; i < E.length; i++) {
       const e = E[i];
       if (!e.active || e.lastHitId === p.attackId) continue;
-      if (!rectsOverlap(hb, e)) continue;
+      if (!hitsActor(hb, a.depth, p.z, e)) continue;
       e.lastHitId = p.attackId;
       const ix = (Math.max(hb.x, e.x) + Math.min(hb.x + hb.w, e.x + e.w)) / 2;
-      const iy = (Math.max(hb.y, e.y) + Math.min(hb.y + hb.h, e.y + e.h)) / 2;
+      const iy = FLOOR_Y + e.z + (Math.max(hb.y, e.y) + Math.min(hb.y + hb.h, e.y + e.h)) / 2;
       const r = e.hit(a, p.cx, p.bottom, this);
+      const dir = e.cx >= p.cx ? 1 : -1;
       if (r === 'blocked') {
         blocked = true;
         FX.ring(ix, iy, 4, 40, 0.2, false, 3);
-        FX.burst(ix, iy, 8, 360, { dir: -p.facing, spread: 1.0, streak: true, grav: 300 });
+        FX.burst(ix, iy, 8, 360, { dir: -dir, spread: 1.0, streak: true, grav: 300 });
       } else if (r === 'hit') {
         hits++;
-        if (e.cy > p.bottom - 6) below = true;
         FX.ring(ix, iy, 2, a.heavy ? 22 : 13, 0.08, false, 0, true);
         FX.ring(ix, iy, 6, a.heavy ? 74 : 42, a.heavy ? 0.26 : 0.18, false, a.heavy ? 5 : 3);
-        FX.burst(ix, iy, a.heavy ? 16 : 9, a.heavy ? 640 : 440, { dir: p.facing, spread: 0.8, streak: true, grav: 600 });
+        FX.burst(ix, iy, a.heavy ? 16 : 9, a.heavy ? 640 : 440, { dir: dir, spread: 0.8, streak: true, grav: 600 });
       }
     }
     if (hits > 0) {
       this.hitstop(a.hitstop);
       FX.shake(a.shake);
       Sound.hit(!!a.heavy);
-      if (a.air && below && !p.pogoUsed) { p.vy = -PLAYER_CFG.pogoVel; p.pogoUsed = true; }
     } else if (blocked) {
       this.hitstop(0.05);
       FX.shake(0.06);
       Sound.block();
-      p.vx = -p.facing * 280;
+      p.vx = -p.facing * 240;
     }
+  }
+
+  // ------------------------------------------------------------ grabs & throws
+  findGrabTarget(p) {
+    const OK = { idle: 1, approach: 1, stagger: 1, recover: 1, stalk: 1 };
+    let best = null, bd = 1e9;
+    for (const e of this.enemies) {
+      if (!e.active || e.untouchable || e.c.noGrab || e.c.big || !e.onGround || !OK[e.state]) continue;
+      const dx = e.cx - p.cx, adx = Math.abs(dx);
+      if (adx > GRAB_CFG.range || Math.abs(e.z - p.z) > GRAB_CFG.depth) continue;
+      if (adx > 8 && sign(dx) !== p.facing) continue;
+      if (adx < bd) { bd = adx; best = e; }
+    }
+    return best;
+  }
+
+  kneeHit(e, p) {
+    e.hp -= GRAB_CFG.kneeDmg;
+    e.flashT = 0.1;
+    const x = e.cx, y = e.screenY - e.h * 0.5;
+    FX.ring(x, y, 4, 30, 0.15, false, 3);
+    FX.burst(x, y, 6, 260, { up: 1.0, streak: true });
+    this.hitstop(0.05);
+    FX.shake(0.08);
+    Sound.hit(false);
+    if (e.hp <= 0) e.die(p.facing, 220, this);
+  }
+
+  // A thrown body bowls over anyone in its path.
+  resolveThrownBodies() {
+    const E = this.enemies;
+    for (const t of E) {
+      if (!t.active || t.state !== 'thrown') continue;
+      for (const o of E) {
+        if (o === t || !o.active || o.ai === 'thief' || o.lastThrowId === t.throwId) continue;
+        if (Math.abs(o.z - t.z) > 22 || !rectsOverlap(t, o)) continue;
+        o.lastThrowId = t.throwId;
+        const r = o.hit({ dmg: GRAB_CFG.splashDmg, kb: 320, kbUp: -420, knockdown: true, heavy: true, magic: true, stagger: 0.4 }, t.cx, t.bottom, this);
+        if (r === 'hit') {
+          FX.ring(o.cx, o.screenY - o.h / 2, 6, 50, 0.2, false, 4);
+          FX.shake(0.15);
+          Sound.hit(true);
+        }
+      }
+    }
+  }
+
+  onThrownLanded(e) {
+    e.hp -= GRAB_CFG.throwDmg;
+    e.flashT = 0.1;
+    FX.shake(0.28);
+    FX.dust(e.cx, FLOOR_Y + e.z, 16);
+    FX.ring(e.cx, FLOOR_Y + e.z, 8, 80, 0.3, false, 4);
+    Sound.slam();
+    this.hitstop(0.05);
+    e.vx *= 0.3;
+    if (e.hp <= 0 && !e.dying) {
+      e.dying = true;
+      e.hp = 0;
+      this.onEnemyKilled(e);
+      e.setState('dead');
+    } else e.setState('down');
+  }
+
+  // ------------------------------------------------------------ magic
+  castMagic(level) {
+    const targets = [];
+    const p = this.player;
+    for (const e of this.enemies) {
+      if (!e.active || e.dying || e.ai === 'thief') continue;
+      if (e.cx < this.cam.x - 20 || e.cx > this.cam.x + this.viewW + 20) continue;
+      targets.push(e);
+    }
+    // extra spikes scattered over the floor, more with every pot
+    const spikes = [];
+    for (let i = 0; i < level * 5; i++) {
+      spikes.push({ x: this.cam.x + rand(20, this.viewW - 20), z: rand(0, DEPTH), h: rand(0.4, 1), d: rand(0, 0.3) });
+    }
+    for (const e of targets) spikes.push({ x: e.cx, z: e.z, h: 1.3, d: 0, e });
+    this.magic = { t: 0, level, struck: false, spikes, x: p.cx, z: p.z };
+    Sound.magic(level);
+    FX.ring(p.cx, p.screenY - 40, 10, 160, 0.6, false, 3);
+  }
+
+  updateMagic(dt) {
+    const m = this.magic;
+    m.t += dt;
+    if (!m.struck && m.t >= MAGIC_CFG.strikeAt) {
+      m.struck = true;
+      const dmg = MAGIC_CFG.baseDmg + MAGIC_CFG.perPot * m.level;
+      const atk = { dmg, kb: 260, kbUp: -560, knockdown: true, magic: true, heavy: true, stagger: 0.5 };
+      for (const s of m.spikes) {
+        if (!s.e || !s.e.active || s.e.dying) continue;
+        const e = s.e;
+        // the spell reaches even those on the floor
+        if (e.state === 'down' || e.state === 'getup' || e.state === 'launched') e.setState('stagger');
+        e.hit(atk, e.cx - 1, 0, this);
+        FX.burst(e.cx, e.screenY - e.h / 2, 12, 420, { streak: true });
+      }
+      FX.shake(0.3 + m.level * 0.07);
+      Sound.slam();
+    }
+    if (m.t >= MAGIC_CFG.castTime) this.magic = null;
+  }
+
+  drawMagic(ctx) {
+    const m = this.magic;
+    if (!m) return;
+    const t = m.t - MAGIC_CFG.strikeAt;
+    // gathering: lines drawn into the raised sword
+    if (t < 0) {
+      const k = m.t / MAGIC_CFG.strikeAt;
+      const p = this.player;
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const a = i / 10 * TAU + m.t * 3;
+        const r = lerp(220, 20, k);
+        const x = p.cx, y = p.screenY - 150;
+        ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r * 0.6);
+        ctx.lineTo(x + Math.cos(a) * r * 0.8, y + Math.sin(a) * r * 0.48);
+      }
+      ctx.stroke();
+      return;
+    }
+    // eruption: black spikes burst out of the floor
+    ctx.fillStyle = '#000';
+    const scale = 40 + m.level * 16;
+    for (const s of m.spikes) {
+      const lt = t - s.d;
+      if (lt < 0) continue;
+      const k = lt < 0.12 ? lt / 0.12 : Math.max(0, 1 - (lt - 0.12) / 0.45);
+      if (k <= 0) continue;
+      const h = scale * s.h * k, x = s.x, y = FLOOR_Y + s.z;
+      ctx.beginPath();
+      ctx.moveTo(x - 9, y);
+      ctx.lineTo(x - 5, y - h * 0.6);
+      ctx.lineTo(x - 1, y - h);
+      ctx.lineTo(x + 3, y - h * 0.5);
+      ctx.lineTo(x + 6, y - h * 0.75);
+      ctx.lineTo(x + 10, y);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // Colour inversion pulses when the spell lands.
+  magicInvert() {
+    const m = this.magic;
+    if (!m) return false;
+    const t = m.t - MAGIC_CFG.strikeAt;
+    return (t >= 0 && t < 0.07) || (t >= 0.14 && t < 0.2) || (m.level >= 4 && t >= 0.28 && t < 0.33);
+  }
+
+  // ------------------------------------------------------------ thieves & items
+  updateThieves(dt) {
+    for (let i = this.thiefTimers.length - 1; i >= 0; i--) {
+      this.thiefTimers[i] -= dt;
+      if (this.thiefTimers[i] <= 0) {
+        this.thiefTimers.splice(i, 1);
+        this.spawnThief();
+      }
+    }
+  }
+
+  spawnThief() {
+    const e = this.enemyPool.obtain();
+    if (!e) return;
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    const x = dir > 0 ? this.cam.x - 30 : this.cam.x + this.viewW + 30;
+    e.reset('thief', x, rand(20, DEPTH - 20), { enter: dir, facing: dir });
+  }
+
+  dropItem(thief) {
+    Items.drop(Math.random() < 0.7 ? 'pot' : 'food', thief.cx, thief.z);
+    Sound.pickup();
+  }
+
+  pickUp(kind, x, z) {
+    const p = this.player;
+    if (kind === 'pot') p.pots = Math.min(PLAYER_CFG.maxPots, p.pots + 1);
+    else p.hp = Math.min(PLAYER_CFG.maxHp, p.hp + PLAYER_CFG.foodHeal);
+    FX.ring(x, FLOOR_Y + z - 10, 4, 36, 0.3, false, 2);
+    Sound.pickup();
   }
 
   // ------------------------------------------------------------ spawning
   spawnWaveEnemy(type) {
-    const air = ENEMY_TYPES[type].ai === 'flyer';
-    const px = this.player.cx;
-    let best = null, bestScore = -Infinity;
-    for (const s of this.arena.spawns) {
-      if (!!s.air !== air) continue;
-      const d = Math.abs(s.x - px);
-      let score = d >= 340 ? 1000 + Math.random() * 700 : d;
-      const used = this.spawnUsed.get(s);
-      if (used !== undefined && this.time - used < 1.5) score -= 900;
-      if (score > bestScore) { best = s; bestScore = score; }
-    }
+    const c = ENEMY_TYPES[type];
     const e = this.enemyPool.obtain();
-    if (!best || !e) return false;
-    this.spawnUsed.set(best, this.time);
-    e.reset(type, best.x + rand(-8, 8), best.y);
-    e.facing = px >= best.x ? 1 : -1;
-    Sound.spawn();
+    if (!e) return false;
+    const p = this.player, vw = this.viewW, cx = this.cam.x;
+    let z = rand(10, DEPTH - 10);
+    if (c.ai === 'flyer') {
+      const x = p.cx > cx + vw / 2 ? cx + rand(60, vw * 0.35) : cx + vw - rand(60, vw * 0.35);
+      e.reset(type, x, z, { facing: p.cx >= x ? 1 : -1 });
+      Sound.spawn();
+    } else if (c.ai === 'assassin' || Math.random() < 0.3) {
+      // rise out of the ground somewhere not too close
+      let x = cx + vw / 2;
+      for (let tries = 0; tries < 12; tries++) {
+        x = cx + rand(50, vw - 50);
+        z = rand(10, DEPTH - 10);
+        if (Math.hypot(x - p.cx, (z - p.z) * 1.5) > 240) break;
+      }
+      e.reset(type, x, z, { facing: p.cx >= x ? 1 : -1 });
+      Sound.spawn();
+    } else {
+      // walk in from beyond a screen edge; keep both sides busy
+      this.spawnSide = -this.spawnSide;
+      let side = this.spawnSide;
+      if (p.cx < cx + 140) side = 1; else if (p.cx > cx + vw - 140) side = -1;
+      const x = side > 0 ? cx + vw + 40 : cx - 40;
+      e.reset(type, x, z, { enter: -side, facing: -side });
+    }
     return true;
   }
 
   onEnemyKilled(e) {
     const big = !!e.c.big;
-    FX.burst(e.cx, e.cy, big ? 40 : 22, big ? 560 : 400, { streak: true, grav: 700 });
-    FX.burst(e.cx, e.cy, big ? 14 : 8, 160, { grav: -40, life: 1.6 });
-    FX.ring(e.cx, e.cy, 8, big ? 130 : 72, 0.4, false, big ? 6 : 4);
+    const x = e.cx, y = e.screenY - e.h / 2;
+    FX.burst(x, y, big ? 40 : 22, big ? 560 : 400, { streak: true, grav: 700 });
+    FX.ring(x, y, 8, big ? 130 : 72, 0.4, false, big ? 6 : 4);
     FX.shake(big ? 0.3 : 0.1);
     Sound.enemyDie(big);
     this.waves.onDefeated();
@@ -370,24 +615,37 @@ class Game {
         const child = this.enemyPool.obtain();
         if (!child) break;
         const d = i % 2 === 0 ? -1 : 1;
-        child.reset(split.type, e.cx + d * 12, e.bottom, { vx: d * 240, vy: -420, spawnDur: 0.3 });
-        child.facing = d;
+        child.reset(split.type, x + d * 12, e.z + d * 14, { vx: d * 200, vy: -420, spawnDur: 0.3, facing: d });
         this.waves.addExtra(1);
       }
     }
     if (this.waves.def && this.waves.spawned === this.waves.required && this.waves.alive === 0) {
       this.slowmo(0.25, 0.6);
-      FX.ring(e.cx, e.cy, 10, 400, 0.8, false, 2);
+      FX.ring(x, y, 10, 400, 0.8, false, 2);
     }
   }
 
   onPlayerHurt() { this.hurtFlash = 1; this.hitstop(0.06); }
 
-  onPlayerDeath() {
+  // The player's fall animation has finished: spend a life or end the run.
+  onPlayerFallen() {
+    const p = this.player;
+    if (p.lives > 1) {
+      p.lives--;
+      p.revive();
+      // standing back up blasts nearby enemies off their feet
+      for (const e of this.enemies) {
+        if (!e.active || e.untouchable || e.ai === 'thief') continue;
+        const d = Math.hypot(e.cx - p.cx, (e.z - p.z) * 1.5);
+        if (d < 180) e.launch(e.cx >= p.cx ? 1 : -1, 320, -420);
+      }
+      FX.ring(p.cx, p.screenY - 25, 10, 200, 0.6, false, 4);
+      FX.shake(0.3);
+      Sound.slam();
+      return;
+    }
     this.setState(STATE.PLAYER_DEAD);
     this.slowmo(0.35, 0.9);
-    FX.shake(0.5);
-    FX.ring(this.player.cx, this.player.cy, 10, 220, 0.9, false, 3);
   }
 
   debugClearWave() {
@@ -396,29 +654,28 @@ class Game {
     w.queue.length = 0;
     w.phase = w.def.phases.length - 1;
     w.spawned = w.required;
-    for (const e of this.enemies) if (e.active) { e.active = false; w.onDefeated(); }
+    for (const e of this.enemies) if (e.active && e.ai !== 'thief') e.active = false;
     w.alive = 0;
     w.defeated = w.required;
   }
 
   // ------------------------------------------------------------ door
   updateDoor(dt) {
-    const d = this.arena.door, p = this.player, gy = this.arena.groundY;
+    const d = this.stage.door, p = this.player;
     if (this.doorRise < 1) {
       this.doorRise = Math.min(1, this.doorRise + dt / 2.8);
-      FX.shake(0.012);
-      if (Math.random() < 0.6) FX.dust(d.x + rand(-d.slabW / 2, d.slabW / 2), gy, 1);
-      if (this.doorRise >= 1) { FX.shake(0.25); Sound.slam(); FX.dust(d.x, gy, 30); }
+      FX.shake(0.01);
+      if (this.doorRise >= 1) { FX.shake(0.2); Sound.slam(); }
     }
-    const dist = Math.abs(p.cx - d.x);
+    const dist = Math.hypot(p.cx - d.x, p.z * 2.2);
     if (!this.endWalk) {
       if (this.doorRise >= 1) {
-        const target = clamp((1100 - dist) / 900, 0, 1);
+        const target = clamp((900 - dist) / 750, 0, 1);
         this.doorOpen = Math.max(this.doorOpen, approach(this.doorOpen, target, 0.45 * dt));
       }
       p.speedMul = lerp(1, 0.35, this.doorOpen);
       Sound.droneSet(0.06 + this.doorOpen * 0.5);
-      if (this.doorRise >= 1 && dist < 36 && p.onGround) {
+      if (this.doorRise >= 1 && Math.abs(p.cx - d.x) < 30 && p.z < 26 && p.onGround) {
         this.endWalk = true;
         this.endT = 0;
         p.control = false;
@@ -438,28 +695,36 @@ class Game {
   }
 
   // ------------------------------------------------------------ camera
+  targetZoom() {
+    let i = this.waveIndex;
+    if (this.state === STATE.ADVANCE) i = Math.min(WAVES.length - 1, i + 1);
+    return WAVES[i].zoom || ZOOM;
+  }
+
   updateCamera(dt, snap) {
-    const a = this.arena, p = this.player, c = this.cam;
-    const tz = a.zoom;
-    c.zoom = snap ? tz : approach(c.zoom, tz, dt * 0.25);
-    const vw = VIEW_W / c.zoom, vh = VIEW_H / c.zoom;
-    const px = p.alive ? p.cx : p.deathX;
-    c.look = snap ? p.facing * 60 : approach(c.look, p.facing * 60, dt * 160);
-    let center = px + c.look;
-    if (this.state === STATE.DOOR && a.door) {
-      center = px + clamp((a.door.x - px) * 0.5, -vw * 0.3, vw * 0.3) * this.doorRise;
+    const c = this.cam, p = this.player;
+    const tz = this.targetZoom();
+    c.zoom = snap ? tz : approach(c.zoom, tz, dt * 0.2);
+    const vw = this.viewW;
+    const maxX = this.stage.length - vw;
+    if (this.locked) {
+      c.x = snap ? this.lockX : approach(c.x, this.lockX, 700 * dt);
+    } else {
+      // scroll forward only, pushed by the player
+      const px = p.alive ? p.cx : p.deathX;
+      const want = clamp(px - vw * 0.42, 0, maxX);
+      if (want > c.x) c.x = snap ? want : approach(c.x, want, 700 * dt);
+      if (this.state === STATE.ADVANCE) c.x = Math.min(c.x, WAVES[this.waveIndex + 1].lockX);
     }
-    let tx = center - vw / 2;
-    tx = a.width <= vw ? (a.width - vw) / 2 : clamp(tx, 0, a.width - vw);
-    const k = this.state === STATE.DOOR ? 2.5 : 7;
-    c.x = snap ? tx : lerp(c.x, tx, 1 - Math.exp(-dt * k));
-    c.y = VIEW_H - vh;
+    c.x = clamp(c.x, 0, maxX);
+    c.y = FLOOR_Y + DEPTH + 45 - VIEW_H / c.zoom;
   }
 
   // ------------------------------------------------------------ render
   render() {
     const ctx = this.ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.setTransform(this.viewScale, 0, 0, this.viewScale, this.viewX, this.viewY);
@@ -490,23 +755,32 @@ class Game {
     this.drawHUD(ctx);
     this.drawOverlayText(ctx);
 
-    let fa = this.fadeIn;
-    if (this.fade) {
-      const k = this.fade.t / this.fade.dur;
-      fa = Math.max(fa, 1 - Math.abs(k * 2 - 1));
-    }
-    if (fa > 0) {
+    if (this.fadeIn > 0) {
       ctx.fillStyle = '#fff';
-      ctx.globalAlpha = fa;
+      ctx.globalAlpha = this.fadeIn;
       ctx.fillRect(0, 0, VIEW_W, VIEW_H);
       ctx.globalAlpha = 1;
     }
     if (this.paused) this.drawPause(ctx);
     ctx.restore();
+
+    // Night inverts the world: white silhouettes in a black land.
+    // Magic flashes invert it again for an instant.
+    let inv = this.night;
+    if (this.magicInvert()) inv = 1 - inv;
+    if (inv > 0.001) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalCompositeOperation = 'difference';
+      ctx.globalAlpha = inv;
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+    }
   }
 
   renderWorld(ctx) {
-    const c = this.cam, z = c.zoom;
+    const c = this.cam, z = c.zoom, vw = this.viewW;
     let sx = 0, sy = 0;
     if (FX.trauma > 0) {
       const m = 16 * FX.trauma * FX.trauma;
@@ -516,15 +790,41 @@ class Game {
     ctx.scale(z, z);
     ctx.translate(-c.x + sx, -c.y + sy);
 
-    if (this.arena.door && (this.state === STATE.DOOR)) this.drawDoor(ctx);
-    this.arena.draw(ctx);
-    FX.drawBack(ctx);
+    const doorShown = this.stage.door && this.state === STATE.DOOR;
+    this.stage.drawBack(ctx, c.x, vw, this.time);
+    if (doorShown) this.drawDoor(ctx);
+    this.stage.drawFloor(ctx, c.x, vw);
+
+    // shadows first: they belong to the floor
+    ctx.fillStyle = '#000';
+    const p = this.player;
+    if (p.state !== 'dead') drawShadow(ctx, p);
     const E = this.enemies;
-    for (let i = 0; i < E.length; i++) if (E[i].active) E[i].draw(ctx, this);
-    this.player.draw(ctx);
+    for (let i = 0; i < E.length; i++) {
+      const e = E[i];
+      if (!e.active || e.state === 'spawn') continue;
+      ctx.globalAlpha = e.alpha;
+      drawShadow(ctx, e);
+    }
+    ctx.globalAlpha = 1;
+    Projectiles.drawShadows(ctx);
+    Items.draw(ctx);
+
+    // actors, back to front
+    const list = this.drawList;
+    list.length = 0;
+    list.push(p);
+    for (let i = 0; i < E.length; i++) if (E[i].active) list.push(E[i]);
+    list.sort((a, b) => a.z - b.z);
+    for (let i = 0; i < list.length; i++) {
+      if (list[i] === p) p.draw(ctx); else list[i].draw(ctx, this);
+    }
+
     Projectiles.draw(ctx);
+    this.drawMagic(ctx);
     FX.drawFront(ctx);
-    if (this.arena.door && this.state === STATE.DOOR) this.drawDoorLight(ctx);
+    if (doorShown) this.drawDoorLight(ctx);
+    this.stage.drawFront(ctx, c.x, vw, c.y + VIEW_H / z);
     ctx.restore();
 
     this.drawIndicators(ctx);
@@ -533,13 +833,13 @@ class Game {
   // Edge chevrons for threats (and the door) outside the view.
   drawIndicators(ctx) {
     if (this.state === STATE.START) return;
-    const c = this.cam, z = c.zoom, vw = VIEW_W / z;
+    const c = this.cam, z = c.zoom, vw = this.viewW;
     ctx.fillStyle = '#000';
     const chevron = (wx, wy, big) => {
       let dir = 0;
       if (wx < c.x) dir = -1; else if (wx > c.x + vw) dir = 1;
       if (!dir) return;
-      const y = clamp((wy - c.y) * z, 70, VIEW_H - 40);
+      const y = clamp((wy - c.y) * z, 150, VIEW_H - 60);
       const x = dir < 0 ? 14 : VIEW_W - 14;
       const s = big ? 12 : 7;
       ctx.beginPath();
@@ -549,14 +849,25 @@ class Game {
       ctx.closePath();
       ctx.fill();
     };
-    const E = this.enemies;
-    for (let i = 0; i < E.length; i++) {
-      const e = E[i];
-      if (!e.active || e.state === 'shadow') continue;
-      chevron(e.cx, e.cy, !!e.c.big);
+    for (const e of this.enemies) {
+      if (!e.active || e.state === 'shadow' || e.ai === 'thief' || e.dying) continue;
+      chevron(e.cx, e.screenY - e.h / 2, !!e.c.big);
     }
-    if (this.state === STATE.DOOR && this.arena.door && this.doorRise > 0.3) {
-      chevron(this.arena.door.x, this.arena.groundY - 120, true);
+    if (this.state === STATE.DOOR && this.doorRise > 0.3) chevron(this.stage.door.x, FLOOR_Y - 60, true);
+
+    // GO ->
+    const go = this.state === STATE.ADVANCE || (this.state === STATE.DOOR && !this.endWalk && this.stage.door.x > c.x + vw * 0.8);
+    if (go && Math.floor(this.time * 2.5) % 2 === 0) {
+      ctx.globalAlpha = this.state === STATE.DOOR ? 0.5 : 1;
+      this.text('GO', VIEW_W - 120, 200, 30, { weight: 300, spacing: 8 });
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.moveTo(VIEW_W - 36, 190);
+      ctx.lineTo(VIEW_W - 54, 176);
+      ctx.lineTo(VIEW_W - 54, 204);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 1;
     }
   }
 
@@ -570,8 +881,9 @@ class Game {
     ctx.closePath();
   }
 
+  // The monolith rises out of the horizon at the end of the road.
   drawDoor(ctx) {
-    const d = this.arena.door, gy = this.arena.groundY;
+    const d = this.stage.door, gy = FLOOR_Y;
     const rise = easeOutCubic(this.doorRise);
     if (rise <= 0) return;
     const sx = d.x - d.slabW / 2, top = gy - d.slabH;
@@ -580,19 +892,17 @@ class Game {
     ctx.rect(sx - 60, -1200, d.slabW + 120, gy + 1200);
     ctx.clip();
     ctx.translate(0, d.slabH * (1 - rise));
-    // the monolith
     ctx.fillStyle = '#000';
     ctx.fillRect(sx, top, d.slabW, d.slabH);
-    ctx.fillRect(sx + 40, top - 34, d.slabW - 80, 36);
-    ctx.fillRect(sx + 110, top - 60, d.slabW - 220, 28);
-    // the door
+    ctx.fillRect(sx + 40, top - 30, d.slabW - 80, 32);
+    ctx.fillRect(sx + 100, top - 52, d.slabW - 200, 24);
     const o = this.doorOpen;
     const dw = d.doorW, dh = d.doorH;
+    const gap = dw * easeInOutSine(o);
     if (o > 0) {
       ctx.save();
       this.archPath(ctx, d.x, gy, dw, dh);
       ctx.clip();
-      const gap = dw * easeInOutSine(o);
       ctx.fillStyle = '#fff';
       ctx.fillRect(d.x - gap / 2, gy - dh - 2, gap, dh + 4);
       ctx.restore();
@@ -603,7 +913,6 @@ class Game {
     ctx.stroke();
     this.archPath(ctx, d.x, gy, dw + 22, dh + 14);
     ctx.stroke();
-    const gap = dw * easeInOutSine(o);
     ctx.beginPath();
     ctx.moveTo(d.x - gap / 2, gy - dh + (gap < 4 ? 0 : 6));
     ctx.lineTo(d.x - gap / 2, gy);
@@ -613,12 +922,12 @@ class Game {
     ctx.restore();
   }
 
-  // The light spills over everything black: slab, ground, player.
+  // The light spills over everything black: monolith, floor, figure.
   drawDoorLight(ctx) {
     const o = this.doorOpen;
     if (o <= 0.001) return;
-    const d = this.arena.door, gy = this.arena.groundY;
-    const cx = d.x, cy = gy - d.doorH * 0.45;
+    const d = this.stage.door;
+    const cx = d.x, cy = FLOOR_Y - d.doorH * 0.45;
     const intensity = clamp(o + this.whiteout, 0, 2);
     ctx.save();
     ctx.fillStyle = '#fff';
@@ -636,7 +945,7 @@ class Game {
       ctx.fill();
     }
     ctx.globalAlpha = 1;
-    const r = 80 + intensity * 900;
+    const r = 80 + intensity * 800;
     const gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
     gr.addColorStop(0, 'rgba(255,255,255,1)');
     gr.addColorStop(0.3, 'rgba(255,255,255,' + (0.9 * Math.min(1, o * 1.2)).toFixed(3) + ')');
@@ -664,25 +973,51 @@ class Game {
   drawHUD(ctx) {
     const a = this.hudAlpha;
     if (a <= 0.01 || this.state === STATE.START) return;
+    const p = this.player;
     ctx.globalAlpha = a;
-    const x = 64, y = 46;
+    const x = 40, y = 46;
     this.text('WAVE ' + (this.waveIndex + 1), x, y, 18, { weight: 700, spacing: 4 });
+
+    // HP
     this.text('HP', x, y + 30, 12, { weight: 700, spacing: 2 });
-    const blocks = 10, bw = 14, bh = 10, gap = 3;
-    const fill = this.player.hp / PLAYER_CFG.maxHp * blocks;
+    const blocks = 10, bw = 14, bh = 10, gap = 3, bx0 = x + 58;
+    const fill = p.hp / PLAYER_CFG.maxHp * blocks;
     ctx.fillStyle = '#000';
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1;
     for (let i = 0; i < blocks; i++) {
-      const bx = x + 30 + i * (bw + gap), by = y + 20;
+      const bx = bx0 + i * (bw + gap), by = y + 20;
       ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
       const f = clamp(fill - i, 0, 1);
       if (f > 0) ctx.fillRect(bx, by, bw * f, bh);
     }
+
+    // magic pots
+    this.text('MAGIC', x, y + 54, 12, { weight: 700, spacing: 2 });
+    for (let i = 0; i < PLAYER_CFG.maxPots; i++) {
+      const px = bx0 + 5 + i * 17, py = y + 53;
+      ctx.beginPath();
+      ctx.arc(px, py - 4, 5, 0, TAU);
+      ctx.rect(px - 1.5, py - 13, 3, 5);
+      if (i < p.pots) ctx.fill();
+      else { ctx.beginPath(); ctx.arc(px, py - 4, 4.5, 0, TAU); ctx.stroke(); }
+    }
+
+    // lives
+    this.text('LIVES', x, y + 78, 12, { weight: 700, spacing: 2 });
+    for (let i = 0; i < p.lives; i++) {
+      const lx = bx0 + 3 + i * 17, ly = y + 77;
+      ctx.beginPath();
+      ctx.arc(lx + 3, ly - 10, 3.2, 0, TAU);
+      ctx.fill();
+      ctx.fillRect(lx, ly - 7, 6, 7);
+    }
+
     let remaining;
     if (this.waves.def) remaining = this.waves.remaining;
-    else { remaining = 0; for (const ph of WAVES[this.waveIndex].phases) for (const [, n] of ph) remaining += n; }
-    this.text('ENEMIES: ' + remaining, x, y + 56, 12, { weight: 700, spacing: 2 });
+    else if (this.state === STATE.WAVE_INTRO) { remaining = 0; for (const ph of WAVES[this.waveIndex].phases) for (const [, n] of ph) remaining += n; }
+    else remaining = 0;
+    this.text('ENEMIES: ' + remaining, x, y + 102, 12, { weight: 700, spacing: 2 });
     ctx.globalAlpha = 1;
   }
 
@@ -692,21 +1027,29 @@ class Game {
     if (s === STATE.START) {
       const a = clamp(this.time * 1.2, 0, 1);
       ctx.globalAlpha = a;
-      this.text('SEEK', cx, 250, 132, { weight: 300, spacing: 44, align: 'center' });
+      this.text('SEEK', cx, 172, 132, { weight: 300, spacing: 44, align: 'center' });
       ctx.globalAlpha = a * (0.45 + 0.35 * Math.sin(this.time * 2.5));
-      this.text('press any key', cx, 316, 15, { spacing: 4, align: 'center' });
-      ctx.globalAlpha = a * 0.7;
-      this.text('← →  move      SPACE  jump      X / J / click  attack      SHIFT / C / right-click  dash      ↓ + SPACE  drop      P  pause', cx, VIEW_H - 24, 11, { spacing: 1, align: 'center', color: '#fff' });
+      this.text('press any key', cx, 218, 15, { spacing: 4, align: 'center' });
+      ctx.globalAlpha = a * 0.8;
+      this.text('ARROWS / WASD  move      ←← / SHIFT  run      SPACE  jump      X / click  attack      F / right-click  back attack      V  magic      P  pause',
+        cx, VIEW_H - 10, 11, { spacing: 1, align: 'center', color: '#fff' });
       ctx.globalAlpha = 1;
     } else if (s === STATE.WAVE_INTRO) {
       const a = t < 0.25 ? t / 0.25 : t > 1.1 ? Math.max(0, 1 - (t - 1.1) / 0.3) : 1;
       ctx.globalAlpha = a;
-      this.text('WAVE ' + (this.waveIndex + 1), cx, 210, 44, { weight: 300, spacing: 18, align: 'center' });
+      this.text('WAVE ' + (this.waveIndex + 1), cx, 190, 44, { weight: 300, spacing: 18, align: 'center' });
       ctx.globalAlpha = 1;
     } else if (s === STATE.WAVE_COMPLETE && !WAVES[this.waveIndex].final) {
       const a = t < 0.3 ? t / 0.3 : Math.max(0, 1 - (t - 1.3) / 0.5);
       ctx.globalAlpha = clamp(a, 0, 1);
-      this.text('CLEARED', cx, 210, 20, { weight: 400, spacing: 12, align: 'center' });
+      this.text('CLEARED', cx, 190, 20, { weight: 400, spacing: 12, align: 'center' });
+      ctx.globalAlpha = 1;
+    } else if (s === STATE.REST) {
+      const a = t < 1 ? t : t > 9.5 ? Math.max(0, 1 - (t - 9.5) / 1.2) : 1;
+      ctx.globalAlpha = clamp(a, 0, 1) * 0.9;
+      this.text('REST', cx, 190, 26, { weight: 300, spacing: 16, align: 'center' });
+      ctx.globalAlpha = clamp(a, 0, 1) * 0.6;
+      this.text('thieves come in the night. take back what they carry.', cx, 222, 12, { spacing: 2, align: 'center' });
       ctx.globalAlpha = 1;
     } else if (s === STATE.PLAYER_DEAD && t > 1.6) {
       const a = clamp((t - 1.6) / 0.8, 0, 1);
@@ -740,21 +1083,24 @@ class Game {
 
   drawPause(ctx) {
     ctx.fillStyle = '#fff';
-    ctx.globalAlpha = 0.85;
+    ctx.globalAlpha = 0.88;
     ctx.fillRect(0, 0, VIEW_W, VIEW_H);
     ctx.globalAlpha = 1;
     const cx = VIEW_W / 2;
-    this.text('PAUSED', cx, 270, 34, { weight: 300, spacing: 16, align: 'center' });
+    this.text('PAUSED', cx, 210, 34, { weight: 300, spacing: 16, align: 'center' });
     const lines = [
-      'MOVE   ← → / A D',
-      'JUMP   SPACE / W / ↑ / Z',
-      'ATTACK   X / J / LEFT CLICK   (press repeatedly for a three-hit combo)',
-      'DASH   SHIFT / C / RIGHT CLICK   (brief invulnerability)',
-      'DROP THROUGH PLATFORM   ↓ + JUMP',
+      'MOVE   ARROWS / WASD   (up and down walk into and out of the screen)',
+      'RUN   double-tap ← or →,  or hold SHIFT / C',
+      'JUMP   SPACE / Z / K',
+      'ATTACK   X / J / LEFT CLICK   (repeat for a three-hit combo)',
+      'RUNNING ATTACK   attack while running      JUMP ATTACK   attack in the air',
+      'GRAB & THROW   attack point-blank: knee, knee, then throw',
+      'BACK ATTACK   F / RIGHT CLICK   or JUMP + ATTACK together - hits both sides',
+      'MAGIC   V / Q   spends every pot you carry - more pots, bigger spell',
       'MUTE   M',
     ];
-    lines.forEach((l, i) => this.text(l, cx, 330 + i * 26, 12, { spacing: 2, align: 'center' }));
-    this.text('P / ESC to resume', cx, 510, 12, { spacing: 3, align: 'center', weight: 700 });
+    lines.forEach((l, i) => this.text(l, cx, 262 + i * 26, 12, { spacing: 2, align: 'center' }));
+    this.text('P / ESC to resume', cx, 262 + lines.length * 26 + 30, 12, { spacing: 3, align: 'center', weight: 700 });
   }
 }
 

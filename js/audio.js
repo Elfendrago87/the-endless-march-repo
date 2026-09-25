@@ -100,6 +100,12 @@ const Sound = {
   waveClear() { this.tone(220, 220, 0.6, 'sine', 0.14); this.tone(330, 330, 0.9, 'sine', 0.1); },
   death() { this.tone(200, 36, 1.4, 'sawtooth', 0.18); this.hiss(1.0, 0.2, 400, 0.6, 'lowpass', 80); },
   rumble() { this.hiss(0.5, 0.25, 120, 0.8, 'lowpass'); },
+  grab() { this.hiss(0.08, 0.3, 300, 1, 'lowpass'); this.tone(120, 80, 0.1, 'sine', 0.3); },
+  pickup() { this.tone(880, 1320, 0.09, 'triangle', 0.09); this.tone(1320, 1760, 0.12, 'triangle', 0.06); },
+  magic(level) {
+    this.tone(60, 60 + level * 40, 0.75, 'sawtooth', 0.12);
+    this.hiss(0.75, 0.15, 400, 2, 'bandpass', 3000 + level * 800);
+  },
   chime() { this.tone(523, 523, 2.5, 'sine', 0.08); this.tone(784, 784, 3, 'sine', 0.04); },
 
   // Continuous drone for the door sequence; level 0..1.

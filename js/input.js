@@ -5,20 +5,24 @@
 const KEYMAP = {
   ArrowLeft: 'left', KeyA: 'left',
   ArrowRight: 'right', KeyD: 'right',
+  ArrowUp: 'up', KeyW: 'up',
   ArrowDown: 'down', KeyS: 'down',
-  ArrowUp: 'jump', KeyW: 'jump', Space: 'jump', KeyZ: 'jump', KeyK: 'jump',
+  Space: 'jump', KeyZ: 'jump', KeyK: 'jump',
   KeyX: 'attack', KeyJ: 'attack',
-  ShiftLeft: 'dash', ShiftRight: 'dash', KeyC: 'dash', KeyL: 'dash',
+  KeyF: 'back', KeyU: 'back',
+  ShiftLeft: 'run', ShiftRight: 'run', KeyC: 'run',
+  KeyV: 'magic', KeyQ: 'magic', KeyL: 'magic',
   Escape: 'pause', KeyP: 'pause',
   Enter: 'confirm',
 };
 
-const PAD_BUTTONS = { 0: 'jump', 2: 'attack', 1: 'dash', 5: 'dash', 7: 'dash', 9: 'pause', 12: 'jump', 13: 'down' };
+const PAD_BUTTONS = { 0: 'jump', 2: 'attack', 1: 'back', 3: 'magic', 5: 'run', 7: 'run', 9: 'pause', 12: 'up', 13: 'down' };
 
 const Input = {
   keyDown: {}, padDown: {}, pressed: {}, released: {},
   anyPressed: false, // any key/button this step (menus)
-  padAxis: 0,
+  padAxis: 0, padAxisZ: 0,
+  lastTap: { left: -1, right: -1 }, doubleTap: 0, // set to -1/1 on a double tap
 
   init(target) {
     this._held = {}; // physical keys, so two bindings for one action behave
@@ -29,7 +33,7 @@ const Input = {
       if (a) e.preventDefault();
       if (e.repeat) return;
       if (a) {
-        if (!this.keyDown[a]) this.pressed[a] = true;
+        if (!this.keyDown[a]) { this.pressed[a] = true; this.tap(a); }
         this.keyDown[a] = true;
       }
       if (a !== 'pause') this.anyPressed = true;
@@ -52,7 +56,7 @@ const Input = {
     target.addEventListener('mousedown', (e) => {
       Sound.init();
       e.preventDefault();
-      const a = e.button === 2 ? 'dash' : 'attack';
+      const a = e.button === 2 ? 'back' : 'attack';
       this.pressed[a] = true;
       this.anyPressed = true;
     });
@@ -67,18 +71,21 @@ const Input = {
     const pads = navigator.getGamepads ? navigator.getGamepads() : null;
     let pad = null;
     if (pads) for (let i = 0; i < pads.length; i++) if (pads[i]) { pad = pads[i]; break; }
-    if (!pad) { this.padAxis = 0; this.padDown = {}; return; }
+    if (!pad) { this.padAxis = 0; this.padAxisZ = 0; this.padDown = {}; return; }
     let ax = pad.axes[0] || 0;
     if (Math.abs(ax) < 0.3) ax = 0;
     if (pad.buttons[14] && pad.buttons[14].pressed) ax = -1;
     if (pad.buttons[15] && pad.buttons[15].pressed) ax = 1;
+    const prevAx = this.padAxis;
     this.padAxis = sign(ax);
+    if (this.padAxis !== 0 && this.padAxis !== prevAx) this.tap(this.padAxis > 0 ? 'right' : 'left');
+    const az = pad.axes[1] || 0;
+    this.padAxisZ = Math.abs(az) < 0.35 ? 0 : sign(az);
     const now = {};
     for (const idx in PAD_BUTTONS) {
       const b = pad.buttons[idx];
       if (b && b.pressed) now[PAD_BUTTONS[idx]] = true;
     }
-    if ((pad.axes[1] || 0) > 0.6) now.down = true;
     for (const a in now) if (!this.padDown[a]) {
       this.pressed[a] = true;
       if (a !== 'pause') this.anyPressed = true;
@@ -90,6 +97,19 @@ const Input = {
 
   isDown(a) { return !!(this.keyDown[a] || this.padDown[a]); },
 
+  // Double-tapping a direction starts a run.
+  tap(a) {
+    if (a !== 'left' && a !== 'right') return;
+    const now = performance.now() / 1000;
+    if (now - this.lastTap[a] < PLAYER_CFG.doubleTap) this.doubleTap = a === 'right' ? 1 : -1;
+    this.lastTap[a] = now;
+  },
+
+  axisZ() {
+    const k = (this.isDown('down') ? 1 : 0) - (this.isDown('up') ? 1 : 0);
+    return k !== 0 ? k : this.padAxisZ;
+  },
+
   axisX() {
     const k = (this.keyDown.right ? 1 : 0) - (this.keyDown.left ? 1 : 0);
     return k !== 0 ? k : this.padAxis;
@@ -99,5 +119,6 @@ const Input = {
     for (const k in this.pressed) this.pressed[k] = false;
     for (const k in this.released) this.released[k] = false;
     this.anyPressed = false;
+    this.doubleTap = 0;
   },
 };

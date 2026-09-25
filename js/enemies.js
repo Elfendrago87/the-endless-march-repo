@@ -1,42 +1,52 @@
 'use strict';
-// Enemy archetypes. Each has a readable windup -> active -> recovery cycle.
-// All share one pooled class; behaviour is chosen by the type's `ai` key.
+// Enemy archetypes on the belt-scroller floor. Each has a readable
+// windup -> active -> recovery cycle. Enemies take turns: only a few may hold
+// an attack "token" at once; the rest circle at a distance, waiting.
+
+const DOWN_TIME = 0.7, GETUP_TIME = 0.35, CORPSE_TIME = 0.8;
 
 class Enemy {
   constructor() {
     this.active = false;
     this.atkBox = Rect();
-    this.aim = { x: 0, y: 0 };
+    this.aim = { x: 0, z: 0 };
   }
 
-  reset(type, x, bottom, opts) {
+  reset(type, x, z, opts) {
     const c = ENEMY_TYPES[type];
+    opts = opts || {};
     this.type = type; this.c = c; this.ai = c.ai;
     this.w = c.w; this.h = c.h;
-    this.x = x - c.w / 2; this.y = bottom - c.h;
-    this.vx = (opts && opts.vx) || 0;
-    this.vy = (opts && opts.vy) || 0;
-    this.onGround = false; this.onPlatform = false; this.hitWall = 0; this.dropping = false;
+    this.x = x - c.w / 2; this.z = clamp(z, 0, DEPTH);
+    this.y = c.ai === 'flyer' ? -c.h - c.hover : -c.h;
+    this.vx = opts.vx || 0; this.vy = opts.vy || 0; this.vz = 0;
+    if (opts.vy) this.y -= 1;
+    this.onGround = this.ai !== 'flyer'; this.hitWall = 0;
     this.hp = this.maxHp = c.hp;
-    this.facing = Math.random() < 0.5 ? 1 : -1;
-    this.state = 'spawn'; this.t = 0;
-    this.spawnDur = (opts && opts.spawnDur) || SPAWN_TIME;
+    this.facing = opts.facing || 1;
+    this.t = 0;
+    this.spawnDur = opts.spawnDur || SPAWN_TIME;
+    this.enterDir = opts.enter || 0;
+    this.state = this.enterDir ? 'enter' : 'spawn';
     this.flashT = 0; this.staggerT = 0; this.poiseCd = 0;
-    this.lastHitId = -1;
+    this.lastHitId = -1; this.lastThrowId = -1;
     this.atkActive = false; this.atkHit = false; this.atkDef = null;
-    this.atkDmg = 0; this.atkKb = 0; this.atkKbUp = 0;
-    this.cd = rand(0.4, 1.0); this.jumpCd = 0; this.dropT = 0; this.turnT = 0;
-    this.alpha = 0; this.shieldUp = c.ai === 'shield';
+    this.atkDmg = 0; this.atkKb = 0; this.atkKbUp = 0; this.atkKnock = false; this.atkDepth = DEPTH_TOL;
+    this.cd = rand(0.4, 1.0); this.turnT = 0;
+    this.alpha = this.enterDir ? 1 : 0; this.shieldUp = c.ai === 'shield';
     this.anim = rand(0, 10); this.bob = rand(0, TAU);
     this.move = null; this.windDur = 0; this.recDur = 0;
     this.stalkDur = rand(1.0, 1.6); this.trailT = 0;
+    this.hasToken = false; this.dying = false;
+    this.ringOff = rand(0, 70); this.zOff = rand(-60, 60); this.rerollT = rand(1.5, 3);
+    this.thrownBy = null; this.fleeing = false;
     this.active = true;
     return this;
   }
 
   get cx() { return this.x + this.w / 2; }
-  get cy() { return this.y + this.h / 2; }
   get bottom() { return this.y + this.h; }
+  get screenY() { return FLOOR_Y + this.z + this.y + this.h; }
 
   setState(s) {
     this.state = s;
@@ -45,79 +55,150 @@ class Enemy {
     this.atkHit = false;
   }
 
-  beginAttack(dmg, kb, kbUp, box) {
+  releaseToken() { this.hasToken = false; }
+
+  beginAttack(dmg, kb, kbUp, box, knockdown, depth) {
     this.atkActive = true;
     this.atkHit = false;
     this.atkDmg = dmg; this.atkKb = kb; this.atkKbUp = kbUp;
-    this.atkDef = box;
+    this.atkDef = box; this.atkKnock = !!knockdown; this.atkDepth = depth || DEPTH_TOL;
   }
 
+  // States in which the sword passes through (already on the floor, etc.)
+  get untouchable() {
+    const s = this.state;
+    return this.dying || s === 'spawn' || s === 'launched' || s === 'down' || s === 'getup' ||
+      s === 'dead' || s === 'grabbed' || s === 'thrown';
+  }
+
+  // Walking in, enemies may be off-screen; once in the fight they stay on it.
   physics(dt, g, gravity) {
-    if (gravity) this.vy = Math.min(this.vy + GRAVITY * dt, 1100);
-    moveBody(this, dt, g.arena);
+    if (this.state === 'enter') moveActor(this, dt, g.enemyMinX, g.enemyMaxX, gravity);
+    else moveActor(this, dt, g.fightMinX, g.fightMaxX, gravity);
   }
-
+  friction(dt, amt) {
+    this.vx = approach(this.vx, 0, (amt || 1800) * dt);
+    this.vz = approach(this.vz, 0, (amt || 1800) * dt);
+  }
   faceToward(dx) { if (dx !== 0) this.facing = dx > 0 ? 1 : -1; }
 
-  // Simple platform navigation for ground units.
-  navigate(dx, dy, adx) {
+  // Walk toward a floor point.
+  steer(tx, tz, speedMul, dt) {
     const c = this.c;
-    if (!this.onGround || !c.jump || this.jumpCd > 0) return;
-    if (this.hitWall !== 0 && this.hitWall === sign(this.vx || this.facing)) {
-      this.vy = -c.jump; this.jumpCd = 0.8; this.onGround = false;
-    } else if (dy < -90 && adx < 170) {
-      this.vy = -c.jump; this.jumpCd = 1.4; this.onGround = false;
-    } else if (dy > 60 && this.onPlatform && adx < 240) {
-      this.dropT = 0.3;
-    }
+    const dx = tx - this.cx, dz = tz - this.z;
+    const wx = Math.abs(dx) > 6 ? sign(dx) * c.speed * speedMul * Math.min(1, Math.abs(dx) / 40) : 0;
+    const wz = Math.abs(dz) > 3 ? sign(dz) * c.depthSpeed * speedMul * Math.min(1, Math.abs(dz) / 20) : 0;
+    const acc = (c.accel || 1000) * dt;
+    this.vx = approach(this.vx, wx, acc);
+    this.vz = approach(this.vz, wz, acc);
   }
 
-  friction(dt, amt) { this.vx = approach(this.vx, 0, (amt || 1800) * dt); }
+  // While waiting for a turn, hold a loose ring around the player.
+  circle(p, dt) {
+    const side = this.cx < p.cx ? -1 : 1;
+    this.steer(p.cx + side * (150 + this.ringOff), clamp(p.z + this.zOff, 0, DEPTH), 0.6, dt);
+    this.faceToward(p.cx - this.cx);
+  }
+
+  wantToken(g) {
+    if (!this.hasToken && this.cd <= 0 && g.requestToken(this)) this.hasToken = true;
+    return this.hasToken;
+  }
 
   defaultState() {
     switch (this.ai) {
       case 'flyer': return 'rise';
       case 'assassin': return 'stalk';
+      case 'thief': return 'run';
       default: return 'approach';
     }
-  }
-
-  isFloating() {
-    return this.ai === 'flyer' && this.state !== 'recover';
   }
 
   update(dt, g) {
     const p = g.player;
     this.t += dt; this.anim += dt;
-    if (this.flashT > 0) this.flashT -= dt;
-    this.cd -= dt; this.jumpCd -= dt; this.dropT -= dt; this.poiseCd -= dt;
-    this.dropping = this.dropT > 0 || this.ai === 'flyer';
-
-    if (this.state === 'spawn') {
-      this.alpha = Math.min(1, this.t / this.spawnDur);
-      if (this.ai !== 'flyer') this.physics(dt, g, true);
-      else this.vy = 0;
-      if (this.t >= this.spawnDur) {
-        this.alpha = 1;
-        this.setState(this.ai === 'flyer' ? 'hover' : this.ai === 'assassin' ? 'stalk' : 'idle');
-      }
-      return;
+    // safety net: never let a broken position soft-lock a wave
+    if (!isFinite(this.x) || !isFinite(this.z) || !isFinite(this.y)) {
+      this.x = g.cam.x + g.viewW / 2; this.z = DEPTH / 2; this.y = -this.h;
+      this.vx = 0; this.vz = 0; this.vy = 0;
     }
+    if (this.flashT > 0) this.flashT -= dt;
+    this.cd -= dt; this.poiseCd -= dt;
+    this.rerollT -= dt;
+    if (this.rerollT <= 0) { this.rerollT = rand(1.5, 3); this.zOff = rand(-60, 60); this.ringOff = rand(0, 70); }
+
+    switch (this.state) {
+      case 'spawn':
+        this.alpha = Math.min(1, this.t / this.spawnDur);
+        this.physics(dt, g, this.ai !== 'flyer');
+        if (this.t >= this.spawnDur) {
+          this.alpha = 1;
+          this.setState(this.ai === 'flyer' ? 'hover' : this.ai === 'assassin' ? 'stalk' : this.ai === 'thief' ? 'run' : 'idle');
+        }
+        return;
+      case 'enter': {
+        // walk in from beyond the screen edge
+        this.facing = this.enterDir;
+        this.vx = this.enterDir * this.c.speed;
+        this.vz = 0;
+        this.physics(dt, g, true);
+        const inside = this.x > g.cam.x + 20 && this.x + this.w < g.cam.x + g.viewW - 20;
+        if (inside || this.t > 4) this.setState(this.ai === 'thief' ? 'run' : this.ai === 'assassin' ? 'stalk' : 'idle');
+        return;
+      }
+      case 'grabbed':
+        return; // the player holds us in place
+      case 'thrown':
+        this.anim += dt * 10;
+        this.physics(dt, g, true);
+        if (this.onGround && this.t > 0.08) g.onThrownLanded(this);
+        return;
+      case 'launched':
+        this.physics(dt, g, true);
+        if (this.onGround && this.t > 0.05) {
+          FX.dust(this.cx, this.screenY, 8);
+          this.vx *= 0.3;
+          this.setState(this.dying ? 'dead' : 'down');
+        }
+        return;
+      case 'down':
+        this.friction(dt, 1400);
+        this.physics(dt, g, true);
+        if (this.t >= DOWN_TIME) this.setState('getup');
+        return;
+      case 'getup':
+        this.physics(dt, g, true);
+        if (this.t >= GETUP_TIME) this.setState(this.defaultState());
+        return;
+      case 'dead':
+        this.friction(dt, 1400);
+        this.physics(dt, g, true);
+        if (this.t >= CORPSE_TIME) {
+          this.active = false;
+          FX.burst(this.cx, this.screenY - this.h * 0.3, this.c.big ? 24 : 12, 160, { grav: -60, life: 1.4 });
+        }
+        return;
+    }
+
+    if (this.ai === 'thief') { this.aiThief(dt, g); return; }
 
     // Once the player falls or the fighting ends, enemies stand still.
     if (!p.alive || !g.combatAllowed) {
       this.atkActive = false;
+      this.releaseToken();
       this.alpha = approach(this.alpha, 1, dt * 2);
       this.friction(dt, 1200);
-      if (this.isFloating()) { this.vy = approach(this.vy, 0, 800 * dt); this.physics(dt, g, false); } else this.physics(dt, g, true);
+      this.physics(dt, g, this.ai !== 'flyer' || this.state === 'recover');
       return;
     }
 
     if (this.state === 'stagger') {
       this.atkActive = false;
       this.staggerT -= dt;
-      this.friction(dt, this.onGround ? 1400 : 300);
-      if (this.isFloating()) { this.vy = approach(this.vy, 0, 1400 * dt); this.physics(dt, g, false); } else this.physics(dt, g, true);
+      this.friction(dt, 1400);
+      const floating = this.ai === 'flyer' && !this.onGround;
+      if (floating) this.vy = approach(this.vy, 0, 1400 * dt);
+      this.physics(dt, g, !floating);
       if (this.staggerT <= 0) this.setState(this.defaultState());
       return;
     }
@@ -125,7 +206,7 @@ class Enemy {
     switch (this.ai) {
       case 'melee': this.aiMelee(dt, g); break;
       case 'lunge': this.aiLunge(dt, g); break;
-      case 'heavy': this.aiHeavy(dt, g); break;
+      case 'heavy': this.aiMelee(dt, g); break;
       case 'ranged': this.aiRanged(dt, g); break;
       case 'flyer': this.aiFlyer(dt, g); break;
       case 'shield': this.aiShield(dt, g); break;
@@ -135,34 +216,45 @@ class Enemy {
 
     if (this.atkActive) {
       placeBox(this.atkBox, this.cx, this.bottom, this.atkDef, this.facing);
-      if (!this.atkHit && p.alive && rectsOverlap(this.atkBox, p)) {
-        if (p.hurt(this.atkDmg, this.cx, this.atkKb, this.atkKbUp)) this.atkHit = true;
+      if (!this.atkHit && p.alive && hitsActor(this.atkBox, this.atkDepth, this.z, p)) {
+        if (p.hurt(this.atkDmg, this.cx, this.atkKb, this.atkKbUp, this.atkKnock)) this.atkHit = true;
       }
     }
   }
 
-  // ---------------------------------------------------------------- SEEKER / SPLITTER
+  // ---------------------------------------------------------------- SEEKER / SPLITTER / BRUTE
   aiMelee(dt, g) {
     const c = this.c, p = g.player;
-    const dx = p.cx - this.cx, adx = Math.abs(dx), dy = p.bottom - this.bottom;
+    const dx = p.cx - this.cx, adx = Math.abs(dx), dz = p.z - this.z;
     switch (this.state) {
       case 'idle':
         this.friction(dt);
         if (this.t > 0.25) this.setState('approach');
         break;
       case 'approach':
-        this.faceToward(dx);
-        if (adx > c.range * 0.75) this.vx = approach(this.vx, this.facing * c.speed, c.accel * dt);
-        else this.friction(dt, c.accel);
-        this.navigate(dx, dy, adx);
-        if (adx <= c.range && Math.abs(dy) < 70 && this.cd <= 0 && this.onGround) this.setState('windup');
+        if (this.wantToken(g)) {
+          const side = this.cx < p.cx ? -1 : 1;
+          this.steer(p.cx + side * c.range * 0.7, p.z, 1, dt);
+          this.faceToward(dx);
+          if (adx <= c.range && Math.abs(dz) <= 8) {
+            this.setState('windup');
+            if (c.big) Sound.windup();
+          }
+        } else this.circle(p, dt);
         break;
       case 'windup':
         this.friction(dt, 2400);
         if (this.t >= c.windup) {
           this.setState('attack');
-          this.vx = this.facing * c.step;
-          this.beginAttack(c.dmg, c.kb, -220, c.box);
+          this.vx = this.facing * (c.step || 0);
+          this.beginAttack(c.dmg, c.kb, c.knockdown ? -440 : -200, c.box, c.knockdown, c.depth);
+          if (c.big) {
+            const fx = this.cx + this.facing * 70;
+            FX.shake(0.4);
+            FX.dust(fx, FLOOR_Y + this.z, 16);
+            FX.ring(fx, FLOOR_Y + this.z, 10, 110, 0.35, false, 5);
+            Sound.slam();
+          }
         }
         break;
       case 'attack':
@@ -171,7 +263,11 @@ class Enemy {
         break;
       case 'recover':
         this.friction(dt);
-        if (this.t >= c.recovery) { this.cd = c.cooldown * rand(0.8, 1.3); this.setState('approach'); }
+        if (this.t >= c.recovery) {
+          this.cd = c.cooldown * rand(0.8, 1.3);
+          this.releaseToken();
+          this.setState('approach');
+        }
         break;
     }
     this.physics(dt, g, true);
@@ -180,16 +276,18 @@ class Enemy {
   // ---------------------------------------------------------------- CHASER
   aiLunge(dt, g) {
     const c = this.c, p = g.player;
-    const dx = p.cx - this.cx, adx = Math.abs(dx), dy = p.bottom - this.bottom;
+    const dx = p.cx - this.cx, adx = Math.abs(dx), dz = p.z - this.z;
     switch (this.state) {
       case 'idle':
         if (this.t > 0.15) this.setState('approach');
         break;
       case 'approach':
-        this.faceToward(dx);
-        this.vx = approach(this.vx, this.facing * c.speed, c.accel * dt);
-        this.navigate(dx, dy, adx);
-        if (adx < c.lungeRange && adx > 30 && Math.abs(dy) < 80 && this.cd <= 0 && this.onGround) this.setState('windup');
+        if (this.wantToken(g)) {
+          const side = this.cx < p.cx ? -1 : 1;
+          this.steer(p.cx + side * 160, p.z, 1, dt);
+          this.faceToward(dx);
+          if (adx < c.lungeRange && adx > 50 && Math.abs(dz) <= 8) this.setState('windup');
+        } else this.circle(p, dt);
         break;
       case 'windup':
         this.friction(dt, 3000);
@@ -197,98 +295,63 @@ class Enemy {
           this.setState('attack');
           this.vx = this.facing * c.lungeSpeed;
           this.vy = -200;
-          this.beginAttack(c.dmg, c.kb, -260, c.box);
-          FX.dust(this.cx, this.bottom, 4, -this.facing);
+          this.beginAttack(c.dmg, c.kb, -260, c.box, false, 18);
+          FX.dust(this.cx, FLOOR_Y + this.z, 4, -this.facing);
         }
         break;
       case 'attack':
         this.vx = this.facing * c.lungeSpeed;
+        this.vz = 0;
         if (this.t >= c.lungeTime || this.hitWall) this.setState('recover');
         break;
       case 'recover':
         this.friction(dt, this.onGround ? 1600 : 400);
-        if (this.t >= c.recovery) { this.cd = c.cooldown * rand(0.8, 1.4); this.setState('approach'); }
+        if (this.t >= c.recovery) {
+          this.cd = c.cooldown * rand(0.8, 1.4);
+          this.releaseToken();
+          this.setState('approach');
+        }
         break;
     }
     this.physics(dt, g, true);
   }
 
-  // ---------------------------------------------------------------- BRUTE
-  aiHeavy(dt, g) {
-    const c = this.c, p = g.player;
-    const dx = p.cx - this.cx, adx = Math.abs(dx), dy = p.bottom - this.bottom;
-    switch (this.state) {
-      case 'idle':
-        if (this.t > 0.4) this.setState('approach');
-        break;
-      case 'approach':
-        this.faceToward(dx);
-        if (adx > c.range * 0.7) this.vx = approach(this.vx, this.facing * c.speed, c.accel * dt);
-        else this.friction(dt, c.accel);
-        if (adx <= c.range && Math.abs(dy) < 100 && this.cd <= 0 && this.onGround) {
-          this.setState('windup');
-          Sound.windup();
-        }
-        break;
-      case 'windup':
-        this.friction(dt, 2000);
-        if (this.t >= c.windup) {
-          this.setState('attack');
-          this.beginAttack(c.dmg, c.kb, -440, c.box);
-          const fx = this.cx + this.facing * 70;
-          FX.shake(0.4);
-          FX.dust(fx, this.bottom, 16);
-          FX.ring(fx, this.bottom, 10, 110, 0.35, false, 5);
-          Sound.slam();
-        }
-        break;
-      case 'attack':
-        if (this.t >= c.active) this.setState('recover');
-        break;
-      case 'recover':
-        this.friction(dt);
-        if (this.t >= c.recovery) { this.cd = c.cooldown * rand(0.8, 1.2); this.setState('approach'); }
-        break;
-    }
-    this.physics(dt, g, true);
-  }
-
-  // ---------------------------------------------------------------- RANGED
+  // ---------------------------------------------------------------- RANGED (axe thrower)
   aiRanged(dt, g) {
     const c = this.c, p = g.player;
-    const dx = p.cx - this.cx, adx = Math.abs(dx);
+    const dx = p.cx - this.cx, adx = Math.abs(dx), dz = p.z - this.z;
     const dir = dx >= 0 ? 1 : -1;
     switch (this.state) {
       case 'idle':
       case 'approach': {
         this.facing = dir;
-        let want = 0;
-        if (adx < c.keepMin) want = -dir;
-        else if (adx > c.keepMax) want = dir;
-        if (want !== 0 && this.hitWall === want) want = 0; // cornered: stand and fight
-        this.vx = approach(this.vx, want * c.speed * (want === -dir ? 1.2 : 1), c.accel * dt);
-        if (this.cd <= 0 && adx < 820 && this.onGround && (adx > c.keepMin * 0.55 || want === 0)) {
-          this.setState('windup');
-        }
+        // hold range along the lane; line up in depth only when ready to throw
+        let tx = this.cx;
+        if (adx < c.keepMin) tx = p.cx - dir * c.keepMin * 1.1;
+        else if (adx > c.keepMax) tx = p.cx - dir * c.keepMax * 0.9;
+        const ready = this.wantToken(g);
+        const tz = ready ? p.z : clamp(p.z + this.zOff * 1.4, 0, DEPTH);
+        this.steer(tx, tz, adx < c.keepMin ? 1.2 : 1, dt);
+        if (ready && Math.abs(dz) <= 10 && adx < 620) this.setState('windup');
         break;
       }
       case 'windup':
         this.facing = dir;
         this.friction(dt, 2000);
         if (this.t >= c.windup) {
-          const hx = this.cx + this.facing * 16, hy = this.bottom - 27;
-          let ax = p.cx - hx, ay = p.cy - hy;
-          const len = Math.hypot(ax, ay) || 1;
-          ax /= len; ay /= len;
-          Projectiles.fire(hx, hy, ax * c.projSpeed, ay * c.projSpeed, c.dmg, c.kb, 7);
-          this.vx = -this.facing * 90; // recoil
+          Projectiles.fire(this.cx + this.facing * 16, this.z, -27, this.facing * c.projSpeed, 0, c.dmg, c.kb, 7, true);
+          this.vx = -this.facing * 90;
           Sound.shoot();
           this.setState('recover');
         }
         break;
       case 'recover':
         this.friction(dt, 800);
-        if (this.t >= c.recovery) { this.cd = c.cooldown * rand(0.85, 1.25); this.setState('approach'); }
+        if (this.t >= c.recovery) {
+          this.cd = c.cooldown * rand(0.85, 1.25);
+          this.releaseToken();
+          this.setState('approach');
+        }
         break;
     }
     this.physics(dt, g, true);
@@ -297,64 +360,67 @@ class Enemy {
   // ---------------------------------------------------------------- FLYER
   aiFlyer(dt, g) {
     const c = this.c, p = g.player;
-    const dx = p.cx - this.cx;
-    const hoverY = Math.max(70, p.y - c.hoverHeight);
+    const dx = p.cx - this.cx, dz = p.z - this.z;
+    const hoverY = -this.h - c.hover;
     switch (this.state) {
       case 'hover': {
-        const tx = p.cx + Math.sin(this.anim * 1.1 + this.bob) * 110;
-        const ty = hoverY + Math.sin(this.anim * 2.3) * 12;
-        this.vx = approach(this.vx, clamp((tx - this.cx) * 2.4, -c.speed, c.speed), 900 * dt);
-        this.vy = approach(this.vy, clamp((ty - this.cy) * 2.4, -c.speed, c.speed), 900 * dt);
+        const side = this.cx < p.cx ? -1 : 1;
+        const ready = this.wantToken(g);
+        const tx = p.cx + (ready ? 0 : side * (120 + this.ringOff)) + Math.sin(this.anim * 1.1 + this.bob) * 50;
+        this.steer(tx, ready ? p.z : clamp(p.z + this.zOff, 0, DEPTH), 1, dt);
+        this.vy = approach(this.vy, clamp((hoverY + Math.sin(this.anim * 2.3) * 10 - this.y) * 3, -150, 150), 600 * dt);
         this.faceToward(dx);
         this.physics(dt, g, false);
-        if (Math.abs(dx) < 90 && this.cd <= 0 && this.t > 0.8 && this.cy < p.y - 60) this.setState('windup');
+        if (ready && Math.abs(dx) < 70 && Math.abs(dz) < 14 && this.t > 0.6) this.setState('windup');
         break;
       }
       case 'windup':
         this.friction(dt, 1200);
-        this.vy = approach(this.vy, -60, 800 * dt);
+        this.vy = approach(this.vy, -40, 800 * dt);
         this.physics(dt, g, false);
-        this.aim.x = p.cx; this.aim.y = p.cy;
+        this.aim.x = p.cx; this.aim.z = p.z;
         if (this.t >= c.windup) {
-          let ax = this.aim.x - this.cx, ay = this.aim.y - this.cy;
-          const len = Math.hypot(ax, ay) || 1;
+          const ax = this.aim.x - this.cx, az = this.aim.z - this.z, ay = -this.bottom;
+          const len = Math.hypot(ax, az, ay) || 1;
           this.setState('dive');
           this.vx = ax / len * c.diveSpeed;
+          this.vz = az / len * c.diveSpeed;
           this.vy = ay / len * c.diveSpeed;
           this.faceToward(this.vx);
-          this.beginAttack(c.dmg, c.kb, -260, c.box);
+          this.beginAttack(c.dmg, c.kb, -300, c.box, true, c.depth);
         }
         break;
       case 'dive':
         this.physics(dt, g, false);
-        if (this.onGround || this.hitWall || this.t >= c.diveTime) {
-          if (this.onGround) { FX.dust(this.cx, this.bottom, 10); FX.shake(0.08); }
+        if (this.onGround || this.t >= c.diveTime) {
+          if (this.onGround) { FX.dust(this.cx, FLOOR_Y + this.z, 10); FX.shake(0.08); }
           this.setState('recover');
-          this.vx = 0;
+          this.vx = 0; this.vz = 0;
         }
         break;
       case 'recover':
         this.friction(dt, 1200);
         this.physics(dt, g, true);
-        if (this.t >= c.recovery) this.setState('rise');
+        if (this.t >= c.recovery) { this.releaseToken(); this.setState('rise'); }
         break;
       case 'rise':
         this.friction(dt, 800);
-        this.vy = approach(this.vy, -280, 1400 * dt);
+        this.vy = approach(this.vy, -240, 1400 * dt);
         this.physics(dt, g, false);
-        if (this.cy <= hoverY + 10 || this.t > 1.6) {
+        if (this.y <= hoverY + 10 || this.t > 1.6) {
           this.cd = c.cooldown * rand(0.8, 1.4);
           this.setState('hover');
         }
         break;
+      default:
+        this.setState('hover');
     }
-    if (this.y < -60) { this.y = -60; if (this.vy < 0) this.vy = 0; }
   }
 
   // ---------------------------------------------------------------- SHIELDER
   aiShield(dt, g) {
     const c = this.c, p = g.player;
-    const dx = p.cx - this.cx, adx = Math.abs(dx), dy = p.bottom - this.bottom;
+    const dx = p.cx - this.cx, adx = Math.abs(dx), dz = p.z - this.z;
     // turning is deliberately slow: that is the opening
     if (this.state === 'approach' || this.state === 'idle') {
       const want = dx >= 0 ? 1 : -1;
@@ -368,11 +434,17 @@ class Enemy {
         if (this.t > 0.3) this.setState('approach');
         break;
       case 'approach': {
-        const facingPlayer = sign(dx) === this.facing;
-        if (facingPlayer && adx > c.range * 0.8) this.vx = approach(this.vx, this.facing * c.speed, c.accel * dt);
-        else this.friction(dt, c.accel);
         this.shieldUp = true;
-        if (facingPlayer && adx <= c.range && Math.abs(dy) < 70 && this.cd <= 0 && this.onGround) this.setState('windup');
+        const facingPlayer = sign(dx) === this.facing;
+        if (this.wantToken(g)) {
+          const side = this.cx < p.cx ? -1 : 1;
+          if (facingPlayer) this.steer(p.cx + side * c.range * 0.75, p.z, 1, dt);
+          else this.friction(dt, c.accel);
+          if (facingPlayer && adx <= c.range && Math.abs(dz) <= 8) this.setState('windup');
+        } else {
+          const side = this.cx < p.cx ? -1 : 1;
+          this.steer(p.cx + side * (150 + this.ringOff), clamp(p.z + this.zOff, 0, DEPTH), 0.6, dt);
+        }
         break;
       }
       case 'windup':
@@ -380,7 +452,7 @@ class Enemy {
         if (this.t >= c.windup) {
           this.setState('attack');
           this.vx = this.facing * c.bashSpeed;
-          this.beginAttack(c.dmg, c.kb, -250, c.box);
+          this.beginAttack(c.dmg, c.kb, -250, c.box, false, 18);
         }
         break;
       case 'attack':
@@ -393,6 +465,7 @@ class Enemy {
         if (this.t >= c.recovery) {
           this.shieldUp = true;
           this.cd = c.cooldown * rand(0.8, 1.3);
+          this.releaseToken();
           this.setState('approach');
         }
         break;
@@ -409,11 +482,10 @@ class Enemy {
       case 'stalk': {
         this.alpha = approach(this.alpha, 1, dt * 4);
         this.facing = dir;
-        let want = 0;
-        if (adx < 200) want = -dir; else if (adx > 320) want = dir;
-        this.vx = approach(this.vx, want * c.speed, c.accel * dt);
+        const tx = adx < 180 ? p.cx - dir * 230 : adx > 320 ? p.cx - dir * 260 : this.cx;
+        this.steer(tx, clamp(p.z + this.zOff, 0, DEPTH), 0.8, dt);
         this.physics(dt, g, true);
-        if (this.t >= this.stalkDur && this.onGround) { this.setState('vanish'); Sound.whisper(); }
+        if (this.t >= this.stalkDur && this.wantToken(g)) { this.setState('vanish'); Sound.whisper(); }
         break;
       }
       case 'vanish':
@@ -425,27 +497,26 @@ class Enemy {
       case 'shadow': {
         // drift unseen to a point behind the player
         this.alpha = 0.08;
-        const arena = g.arena;
-        let tx = p.cx - p.facing * 85;
-        if (tx < 70 || tx > arena.width - 70) tx = p.cx + p.facing * 85;
-        const ty = p.bottom;
-        let ax = tx - this.cx, ay = ty - this.bottom;
-        const d = Math.hypot(ax, ay);
+        let tx = p.cx - p.facing * 70;
+        if (tx < g.cam.x + 30 || tx > g.cam.x + g.viewW - 30) tx = p.cx + p.facing * 70;
+        const tz = p.z;
+        const ax = tx - this.cx, az = tz - this.z;
+        const d = Math.hypot(ax, az);
         const step = c.shadowSpeed * dt;
         if (d <= step || this.t > 1.5) {
           this.x = tx - this.w / 2;
-          this.y = ty - this.h;
-          this.vx = 0; this.vy = 0;
+          this.z = tz;
+          this.vx = 0; this.vz = 0;
           this.facing = p.cx >= this.cx ? 1 : -1;
           this.setState('windup');
           Sound.whisper();
         } else {
           this.x += ax / d * step;
-          this.y += ay / d * step;
+          this.z += az / d * step;
           this.trailT -= dt;
           if (this.trailT <= 0) {
             this.trailT = 0.05;
-            FX.particle(this.cx + rand(-6, 6), this.cy + rand(-14, 14), 0, -20, 0.35, 2.5, false, 0, 1);
+            FX.particle(this.cx + rand(-6, 6), this.screenY - rand(8, 38), 0, -20, 0.35, 2.5, false, 0, 1);
           }
         }
         break;
@@ -456,8 +527,8 @@ class Enemy {
         this.physics(dt, g, true);
         if (this.t >= c.windup) {
           this.setState('attack');
-          this.vx = this.facing * 260;
-          this.beginAttack(c.dmg, c.kb, -240, c.box);
+          this.vx = this.facing * 220;
+          this.beginAttack(c.dmg, c.kb, -240, c.box, false, 18);
         }
         break;
       case 'attack':
@@ -466,44 +537,47 @@ class Enemy {
         this.physics(dt, g, true);
         if (this.t >= c.active) {
           this.setState('retreat');
-          this.vx = -this.facing * 420;
-          this.vy = -440;
+          this.releaseToken();
+          this.vx = -this.facing * 320;
+          this.vy = -380;
         }
         break;
       case 'retreat':
         this.physics(dt, g, true);
         if (this.onGround && this.t > 0.2) this.friction(dt, 1600);
-        if (this.t >= 0.6) { this.stalkDur = rand(1.0, 1.8); this.setState('stalk'); }
+        if (this.t >= 0.6) { this.stalkDur = rand(1.2, 2.0); this.cd = 0.5; this.setState('stalk'); }
         break;
       default:
-        this.physics(dt, g, true);
+        this.setState('stalk');
     }
   }
 
   // ---------------------------------------------------------------- ELITE
   aiElite(dt, g) {
     const c = this.c, p = g.player;
-    const dx = p.cx - this.cx, adx = Math.abs(dx), dy = p.bottom - this.bottom;
+    const dx = p.cx - this.cx, adx = Math.abs(dx), dz = p.z - this.z;
     const enraged = this.hp < this.maxHp * 0.5;
     const wm = enraged ? 0.8 : 1;
     switch (this.state) {
       case 'idle':
         if (this.t > 0.4) this.setState('approach');
         break;
-      case 'approach':
+      case 'approach': {
         this.faceToward(dx);
-        if (adx > 140) this.vx = approach(this.vx, this.facing * c.speed, c.accel * dt);
-        else this.friction(dt, c.accel);
-        this.navigate(dx, dy, adx);
-        if (this.cd <= 0 && this.onGround) {
-          if (adx > 420 || dy < -120) this.move = 'volley';
-          else if (adx > 150) this.move = 'dash';
-          else this.move = 'slam';
+        const side = this.cx < p.cx ? -1 : 1;
+        if (adx > 300) this.steer(p.cx + side * 260, p.z, 1, dt);
+        else this.steer(p.cx + side * 110, p.z, 1, dt);
+        if (this.cd <= 0 && this.wantToken(g)) {
+          if (adx > 300) this.move = 'volley';
+          else if (adx > 130 && Math.abs(dz) <= 10) this.move = 'dash';
+          else if (adx <= 130 && Math.abs(dz) <= 40) this.move = 'slam';
+          else break;
           this.windDur = c.moves[this.move].windup * wm;
           this.setState('windup');
           if (this.move !== 'volley') Sound.windup();
         }
         break;
+      }
       case 'windup':
         if (this.move === 'dash') this.vx = approach(this.vx, -this.facing * 50, 1200 * dt);
         else this.friction(dt, 2000);
@@ -514,26 +588,29 @@ class Enemy {
         const m = c.moves[this.move];
         if (this.move === 'dash') {
           this.vx = this.facing * m.speed;
+          this.vz = 0;
           if (this.t >= m.time || this.hitWall) { this.recDur = m.recovery; this.setState('recover'); }
         } else if (this.t >= m.active) { this.recDur = m.recovery; this.setState('recover'); }
         break;
       }
       case 'recover':
         this.friction(dt, 2000);
-        if (this.t >= this.recDur) { this.cd = rand(0.5, 0.9) * wm; this.setState('approach'); }
+        if (this.t >= this.recDur) {
+          this.cd = rand(0.5, 0.9) * wm;
+          this.releaseToken();
+          this.setState('approach');
+        }
         break;
     }
     this.physics(dt, g, true);
   }
 
   execute(g) {
-    const m = this.c.moves[this.move], p = g.player;
+    const m = this.c.moves[this.move];
     if (this.move === 'volley') {
-      const hx = this.cx + this.facing * 20, hy = this.bottom - 44;
-      const base = Math.atan2(p.cy - hy, p.cx - hx);
+      // three axes fanned out across the depth of the floor
       for (let i = -1; i <= 1; i++) {
-        const a = base + i * 0.2;
-        Projectiles.fire(hx, hy, Math.cos(a) * m.speed, Math.sin(a) * m.speed, m.dmg, m.kb, 8);
+        Projectiles.fire(this.cx + this.facing * 20, this.z, -44, this.facing * m.speed, i * 70, m.dmg, m.kb, 8, true);
       }
       Sound.shoot();
       this.recDur = m.recovery;
@@ -541,56 +618,118 @@ class Enemy {
     } else if (this.move === 'dash') {
       this.setState('attack');
       this.vx = this.facing * m.speed;
-      this.beginAttack(m.dmg, m.kb, -260, m.box);
-      FX.dust(this.cx, this.bottom, 8, -this.facing);
+      this.beginAttack(m.dmg, m.kb, -300, m.box, true, 18);
+      FX.dust(this.cx, FLOOR_Y + this.z, 8, -this.facing);
       Sound.dash();
     } else {
       this.setState('attack');
-      this.beginAttack(m.dmg, m.kb, -420, m.box);
+      this.beginAttack(m.dmg, m.kb, -420, m.box, true, m.depth);
       FX.shake(0.4);
-      FX.dust(this.cx - 80, this.bottom, 10, -1);
-      FX.dust(this.cx + 80, this.bottom, 10, 1);
-      FX.ring(this.cx, this.bottom, 10, 140, 0.4, false, 5);
+      FX.dust(this.cx - 80, FLOOR_Y + this.z, 10, -1);
+      FX.dust(this.cx + 80, FLOOR_Y + this.z, 10, 1);
+      FX.ring(this.cx, FLOOR_Y + this.z, 10, 140, 0.4, false, 5);
       Sound.slam();
     }
   }
 
-  // Called when the sword connects. Returns 'hit', 'blocked' or 'none'.
+  // ---------------------------------------------------------------- THIEF
+  aiThief(dt, g) {
+    const c = this.c;
+    if (this.state === 'stagger') {
+      this.staggerT -= dt;
+      this.friction(dt, 1400);
+      this.physics(dt, g, true);
+      if (this.staggerT <= 0) this.setState('run');
+      return;
+    }
+    // scurry across the screen along a wobbling lane, then vanish off the edge
+    const dir = this.fleeing ? this.fleeDir : this.facing;
+    const speed = c.speed * (this.fleeing ? 1.8 : 1);
+    this.vx = approach(this.vx, dir * speed, c.accel * dt);
+    this.vz = Math.sin(this.anim * 2 + this.bob) * c.depthSpeed * 0.6;
+    this.facing = dir;
+    moveActor(this, dt, g.cam.x - 200, g.cam.x + g.viewW + 200, true);
+    if (this.x > g.cam.x + g.viewW + 60 || this.x + this.w < g.cam.x - 60) this.active = false;
+  }
+
+  // ---------------------------------------------------------------- being hit
+  // Returns 'hit', 'blocked' or 'none'.
   hit(atk, fromX, fromBottom, g) {
-    if (!this.active || this.state === 'spawn') return 'none';
+    if (!this.active || this.untouchable) return 'none';
     const c = this.c;
     const dir = this.cx >= fromX ? 1 : -1; // direction the blow pushes us
-    const fromAbove = fromBottom < this.y + 10;
-    if (this.ai === 'shield' && this.shieldUp && -dir === this.facing && !fromAbove) {
+    if (this.ai === 'thief') {
+      this.flashT = 0.1;
+      this.hp--;
+      g.dropItem(this);
       this.vx = dir * 160;
+      this.staggerT = 0.35;
+      this.setState('stagger');
+      if (this.hp <= 0) { this.fleeing = true; this.fleeDir = dir; }
+      return 'hit';
+    }
+    const fromAbove = fromBottom < this.y + 10;
+    if (!atk.magic && this.ai === 'shield' && this.shieldUp && -dir === this.facing && !fromAbove) {
+      this.vx = dir * 140;
       this.flashT = 0;
       return 'blocked';
     }
     this.hp -= atk.dmg * (c.dmgTaken || 1);
     this.flashT = 0.1;
-    const res = c.kbResist || 0;
-    this.vx = dir * atk.kb * (1 - res);
-    if (this.isFloating()) this.vy = atk.kbUp * 0.4 * (1 - res);
-    else this.vy = Math.min(this.vy, atk.kbUp * (1 - res));
     if (this.ai === 'assassin') this.alpha = 1;
+    this.releaseToken();
+    const res = atk.magic ? 0 : (c.kbResist || 0);
+    if (this.hp <= 0) { this.die(dir, atk.kb, g); return 'hit'; }
 
-    let stagger = !c.superArmor;
-    if (c.poise) {
-      stagger = !!atk.heavy && this.poiseCd <= 0;
-      if (stagger) this.poiseCd = c.poise;
+    let knock = !!atk.knockdown && !c.superArmor && !c.poise;
+    if (c.poise && atk.heavy && this.poiseCd <= 0) { knock = !!atk.knockdown; this.poiseCd = c.poise; }
+    if (atk.magic) knock = true;
+    if (knock) {
+      this.launch(dir, atk.kb * (1 - res), atk.kbUp);
+    } else {
+      this.vx = dir * atk.kb * (1 - res);
+      this.vz = 0;
+      const stagger = !c.superArmor && (!c.poise || (atk.heavy && this.poiseCd === c.poise));
+      if (stagger) {
+        this.staggerT = atk.stagger;
+        this.setState('stagger');
+      }
     }
-    if (stagger) {
-      this.staggerT = atk.stagger;
-      this.setState('stagger');
-    }
-    if (this.hp <= 0) this.die(g);
     return 'hit';
   }
 
-  die(g) {
-    this.active = false;
-    this.atkActive = false;
+  launch(dir, kb, kbUp) {
+    this.releaseToken();
+    this.setState('launched');
+    this.vx = dir * Math.max(120, kb);
+    this.vy = kbUp || -420;
+    this.vz = 0;
+    this.y -= 1;
+    this.onGround = false;
+    if (this.ai === 'assassin') this.alpha = 1;
+  }
+
+  die(dir, kb, g) {
+    this.dying = true;
+    this.hp = 0;
+    this.launch(dir, Math.max(220, kb * 0.6), -380);
     g.onEnemyKilled(this);
+  }
+
+  grabbedBy(p) {
+    this.releaseToken();
+    this.setState('grabbed');
+    this.vx = 0; this.vz = 0; this.vy = 0;
+  }
+
+  throwBy(p, dir) {
+    this.setState('thrown');
+    this.thrownBy = p;
+    this.throwId = ++Enemy.throwSerial;
+    this.vx = dir * 360;
+    this.vy = -640;
+    this.y -= 20;
+    this.onGround = false;
   }
 
   // ---------------------------------------------------------------- drawing
@@ -599,38 +738,52 @@ class Enemy {
     const flash = this.flashT > 0;
     let alpha = this.alpha;
     let sy = 1;
+    const floorY = FLOOR_Y + this.z;
     if (this.state === 'spawn') {
       const k = clamp(this.t / this.spawnDur, 0, 1);
       sy = easeOutCubic(k);
       alpha = k;
-      // ink pooling where it will stand
       ctx.fillStyle = '#000';
-      ctx.globalAlpha = 0.9 * (1 - k * 0.6);
-      ctx.beginPath();
-      ctx.ellipse(this.cx, this.bottom, (this.w * 0.8 + 10) * (0.4 + k * 0.6), 4, 0, 0, TAU);
-      ctx.fill();
-      ctx.globalAlpha = 1;
       if (this.ai === 'flyer') {
         ctx.lineWidth = 2;
         ctx.strokeStyle = '#000';
         ctx.globalAlpha = k;
         ctx.beginPath();
-        ctx.arc(this.cx, this.cy, lerp(70, 16, k), 0, TAU);
+        ctx.arc(this.cx, this.screenY - this.h / 2, lerp(70, 16, k), 0, TAU);
         ctx.stroke();
-        ctx.globalAlpha = 1;
+      } else {
+        // ink pooling where it will stand
+        ctx.globalAlpha = 0.9 * (1 - k * 0.6);
+        ctx.beginPath();
+        ctx.ellipse(this.cx, floorY, (this.w * 0.8 + 10) * (0.4 + k * 0.6), 4, 0, 0, TAU);
+        ctx.fill();
       }
+      ctx.globalAlpha = 1;
     }
+    if (this.state === 'dead' && Math.floor(this.t * 16) % 2 === 0) alpha *= 0.3;
     if (alpha <= 0.01) return;
 
-    // windup telegraph: a ring collapsing onto the enemy
     let tele = 0;
     if (this.state === 'windup') tele = clamp(this.t / (this.windDur || c.windup), 0, 1);
     const shakeX = tele > 0 ? Math.sin(this.anim * 90) * tele * 2.2 : 0;
 
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.translate(this.cx + shakeX, this.bottom);
+    ctx.translate(this.cx + shakeX, this.screenY);
     ctx.scale(this.facing, sy);
+    const s = this.state;
+    if (s === 'launched' || s === 'down' || s === 'dead') {
+      const k = s === 'launched' ? clamp(this.t / 0.3, 0, 1) : 1;
+      ctx.rotate(-1.4 * k);
+    } else if (s === 'getup') {
+      ctx.rotate(-1.4 * (1 - easeOutCubic(this.t / GETUP_TIME)));
+    } else if (s === 'thrown') {
+      ctx.translate(0, -this.h / 2);
+      ctx.rotate(-this.anim * 1.5);
+      ctx.translate(0, this.h / 2);
+    } else if (s === 'grabbed') {
+      ctx.rotate(-0.25);
+    }
     ctx.fillStyle = flash ? '#fff' : '#000';
     ctx.strokeStyle = '#000';
     ctx.lineCap = 'round';
@@ -646,6 +799,7 @@ class Enemy {
       case 'shielder': drawShielder(ctx, this, flash, tele); break;
       case 'assassin': drawAssassin(ctx, this, flash, tele); break;
       case 'elite': drawElite(ctx, this, flash, tele); break;
+      case 'thief': drawThief(ctx, this, flash); break;
     }
     ctx.restore();
 
@@ -654,43 +808,55 @@ class Enemy {
       ctx.strokeStyle = '#000';
       ctx.lineWidth = 2 + tele * 2;
       ctx.beginPath();
-      ctx.arc(this.cx, this.cy, lerp(c.big ? 110 : 70, c.big ? 44 : 26, easeOutCubic(tele)), 0, TAU);
+      ctx.arc(this.cx, this.screenY - this.h / 2, lerp(c.big ? 110 : 70, c.big ? 44 : 26, easeOutCubic(tele)), 0, TAU);
       ctx.stroke();
-      // area preview for heavy ground attacks
-      let zone = null;
-      if (this.ai === 'heavy') zone = c.box;
-      else if (this.ai === 'elite' && this.move === 'slam') zone = c.moves.slam.box;
+      // floor footprint of heavy attacks: where on the floor it will land
+      let zone = null, depth = DEPTH_TOL;
+      if (this.ai === 'heavy') { zone = c.box; depth = c.depth; }
+      else if (this.ai === 'elite' && this.move === 'slam') { zone = c.moves.slam.box; depth = c.moves.slam.depth; }
       if (zone) {
-        placeBox(this.atkBox, this.cx, this.bottom, zone, this.facing);
+        placeBox(this.atkBox, this.cx, 0, zone, this.facing);
         ctx.setLineDash([8, 6]);
         ctx.lineWidth = 2;
-        ctx.strokeRect(this.atkBox.x, this.atkBox.y, this.atkBox.w, this.atkBox.h);
+        ctx.strokeRect(this.atkBox.x, floorY - depth, this.atkBox.w, depth * 2);
         ctx.setLineDash([]);
       }
-      // flyer dive line
+      // flyer: dashed dive line and a target mark on the floor
       if (this.ai === 'flyer' && tele > 0.3) {
         ctx.setLineDash([4, 8]);
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(this.cx, this.cy);
-        ctx.lineTo(this.aim.x, this.aim.y);
+        ctx.moveTo(this.cx, this.screenY - this.h / 2);
+        ctx.lineTo(this.aim.x, FLOOR_Y + this.aim.z);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.ellipse(this.aim.x, FLOOR_Y + this.aim.z, 18, 5, 0, 0, TAU);
+        ctx.stroke();
+      }
+      // lane attacks: a dotted line along the floor lane they will travel
+      if ((this.ai === 'lunge' || (this.ai === 'elite' && this.move === 'dash')) && tele > 0.2) {
+        ctx.setLineDash([3, 7]);
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(this.cx, floorY);
+        ctx.lineTo(this.cx + this.facing * 220, floorY);
         ctx.stroke();
         ctx.setLineDash([]);
       }
       ctx.globalAlpha = 1;
     }
-    // ranged aim line in the last part of its windup
+    // ranged: dotted lane line in the last part of the windup
     if (this.ai === 'ranged' && this.state === 'windup') {
       const k = this.t / c.windup;
-      if (k > 0.55) {
-        const p = g.player;
-        ctx.globalAlpha = (k - 0.55) * 1.6;
+      if (k > 0.45) {
+        ctx.globalAlpha = (k - 0.45) * 1.6;
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 1.5;
         ctx.setLineDash([2, 7]);
         ctx.beginPath();
-        ctx.moveTo(this.cx + this.facing * 16, this.bottom - 27);
-        ctx.lineTo(p.cx, p.cy);
+        ctx.moveTo(this.cx + this.facing * 16, floorY);
+        ctx.lineTo(this.cx + this.facing * 420, floorY);
         ctx.stroke();
         ctx.setLineDash([]);
         ctx.globalAlpha = 1;
@@ -698,6 +864,7 @@ class Enemy {
     }
   }
 }
+Enemy.throwSerial = 0;
 
 // ---------------------------------------------------------------- per-type silhouettes
 // Local space: origin at feet, facing right. fillStyle is preset (black or white on flash).
@@ -720,7 +887,7 @@ function eye(ctx, x, y, w, h, flash) {
   ctx.fillStyle = f;
 }
 function walkCycle(e, rate) {
-  return Math.abs(e.vx) > 20 ? Math.sin(e.anim * rate) : 0;
+  return Math.hypot(e.vx, e.vz) > 20 ? Math.sin(e.anim * rate) : 0;
 }
 
 function drawSeeker(ctx, e, flash, tele) {
@@ -994,5 +1161,30 @@ function drawElite(ctx, e, flash, tele) {
       ctx.arc(26, -44 + i * 12, 2 + tele * 5, 0, TAU);
       finish(ctx, flash);
     }
+  }
+}
+
+function drawThief(ctx, e, flash) {
+  const s = walkCycle(e, 20);
+  limb(ctx, -2, -10, -2 + 6 * s, 0, 4);
+  limb(ctx, -2, -10, -2 - 6 * s, 0, 4);
+  // hunched body + pointed hood
+  ctx.beginPath();
+  ctx.moveTo(-8, -8); ctx.lineTo(-6, -20); ctx.lineTo(4, -30); ctx.lineTo(9, -18); ctx.lineTo(7, -8);
+  ctx.closePath();
+  finish(ctx, flash);
+  eye(ctx, 4, -23, 3, 2, flash);
+  // the sack, bouncing on its back
+  if (e.hp > 0) {
+    const b = Math.abs(s) * 2;
+    ctx.beginPath();
+    ctx.arc(-12, -22 - b, 9, 0, TAU);
+    finish(ctx, flash);
+    ctx.strokeStyle = flash ? '#000' : '#fff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(-15, -29 - b); ctx.lineTo(-9, -29 - b);
+    ctx.stroke();
+    ctx.strokeStyle = '#000';
   }
 }

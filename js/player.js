@@ -98,213 +98,272 @@ class Player {
     this.g = game;
     this.hitBox = Rect();
     this.pose = { x: 0, y: 0, facing: 1, sword: SWORD_REST, legA: 0, legB: 0, lean: 0, sx: 1, sy: 1, cloak: 0, time: 0 };
-    this.reset(640, 620);
+    this.reset(200, DEPTH / 2);
   }
 
-  reset(x, bottom) {
+  reset(x, z) {
     const c = PLAYER_CFG;
     this.w = c.w; this.h = c.h;
-    this.x = x - c.w / 2; this.y = bottom - c.h;
-    this.vx = 0; this.vy = 0;
+    this.x = x - c.w / 2; this.y = -c.h; this.z = z;
+    this.vx = 0; this.vy = 0; this.vz = 0;
     this.facing = 1;
     this.hp = c.maxHp;
+    this.lives = c.lives;
+    this.pots = c.startPots;
     this.alive = true;
     this.state = 'normal';
     this.t = 0;
-    this.onGround = false; this.onPlatform = false; this.hitWall = 0; this.dropping = false;
-    this.coyote = 0; this.jumpBuf = 0; this.atkBuf = 0; this.dashBuf = 0;
-    this.dashCd = 0; this.dashDir = 1; this.invuln = 0;
-    this.airDash = true; this.airAttacks = 0; this.pogoUsed = false;
+    this.onGround = true; this.hitWall = 0;
+    this.jumpBuf = 0; this.atkBuf = 0; this.backBuf = 0; this.magicBuf = 0;
+    this.invuln = 0;
+    this.running = false; this.runDir = 0;
+    this.airAttacks = 0;
     this.combo = 0; this.comboT = 0;
     this.atk = null; this.atkPhase = ''; this.atkT = 0; this.atkFrom = SWORD_REST;
     this.attackId = 0; this.hitActive = false;
-    this.runPhase = 0; this.squash = 0; this.dropT = 0; this.ghostT = 0;
-    this.deathT = 0; this.control = true; this.speedMul = 1;
+    this.grabbed = null; this.knees = 0; this.kneeT = 0;
+    this.hitCount = 0; this.hitCountT = 0;
+    this.lying = false; this.downT = 0;
+    this.runPhase = 0; this.squash = 0; this.ghostT = 0;
+    this.deathT = 0; this.reported = false;
+    this.control = true; this.speedMul = 1;
     this.time = 0;
   }
 
-  place(x, bottom) {
-    this.x = x - this.w / 2; this.y = bottom - this.h;
-    this.vx = 0; this.vy = 0;
+  place(x, z) {
+    this.x = x - this.w / 2; this.z = z; this.y = -this.h;
+    this.vx = 0; this.vy = 0; this.vz = 0;
   }
 
   get cx() { return this.x + this.w / 2; }
-  get cy() { return this.y + this.h / 2; }
   get bottom() { return this.y + this.h; }
-  get dashing() { return this.state === 'dash'; }
+  get screenY() { return FLOOR_Y + this.z + this.y + this.h; }
+  get invulnerable() {
+    const s = this.state;
+    return this.invuln > 0 || s === 'down' || s === 'getup' || s === 'magic' || s === 'throw' || s === 'dead';
+  }
 
   // Returns true when damage was applied.
-  hurt(dmg, fromX, kb, kbUp) {
-    if (!this.alive || this.invuln > 0 || this.state === 'dash' || this.g.god) return false;
-    const c = PLAYER_CFG;
+  hurt(dmg, fromX, kb, kbUp, knockdown) {
+    if (!this.alive || this.invulnerable || this.g.god) return false;
+    this.releaseGrab();
     this.hp = Math.max(0, this.hp - dmg);
     const dir = this.cx >= fromX ? 1 : -1;
-    this.vx = dir * (kb || 300);
-    this.vy = kbUp === undefined ? -340 : kbUp;
-    this.state = 'hurt';
-    this.t = 0;
     this.atk = null;
     this.hitActive = false;
     this.combo = 0;
-    this.invuln = c.hurtInvuln;
-    FX.shake(0.22 + dmg / 90);
-    FX.burst(this.cx, this.cy, 14, 380, { dir: dir, spread: 1.2 });
-    FX.ring(this.cx, this.cy, 6, 46, 0.25, false, 4);
+    this.running = false;
+    this.hitCount++;
+    this.hitCountT = 1.2;
+    FX.shake(0.2 + dmg / 90);
+    FX.burst(this.cx, this.screenY - 25, 14, 380, { dir: dir, spread: 1.2 });
+    FX.ring(this.cx, this.screenY - 25, 6, 46, 0.25, false, 4);
     Sound.hurt();
     this.g.onPlayerHurt(dmg);
-    if (this.hp <= 0) this.die();
+    if (this.hp <= 0) { this.die(dir); return true; }
+    if (knockdown || this.hitCount >= 3) {
+      this.knockDown(dir, kb || 300);
+    } else {
+      this.state = 'hurt';
+      this.t = 0;
+      this.vx = dir * (kb || 300) * 0.6;
+      this.vz = 0;
+      if (!this.onGround) this.vy = kbUp === undefined ? -250 : kbUp * 0.6;
+      this.invuln = PLAYER_CFG.hurtInvuln;
+    }
     return true;
   }
 
-  die() {
+  knockDown(dir, kb) {
+    this.state = 'down';
+    this.t = 0;
+    this.hitCount = 0;
+    this.lying = false;
+    this.downT = 0;
+    this.vx = dir * kb * 0.7;
+    this.vy = -420;
+    this.vz = 0;
+    this.onGround = false;
+  }
+
+  releaseGrab() {
+    if (this.grabbed) {
+      const e = this.grabbed;
+      this.grabbed = null;
+      if (e.active && e.state === 'grabbed') { e.staggerT = 0.3; e.setState('stagger'); }
+    }
+  }
+
+  die(dir) {
     this.alive = false;
     this.state = 'dead';
     this.deathT = 0;
-    this.deathX = this.cx;
-    this.deathY = this.bottom;
+    this.reported = false;
     this.deathFacing = this.facing;
+    this.deathX = this.cx;
+    this.deathZ = this.z;
+    this.vx = dir * 220;
+    this.vy = -320;
+    this.vz = 0;
     this.hitActive = false;
     Sound.death();
-    this.g.onPlayerDeath();
+  }
+
+  // Spend a life: stand back up where you fell, clearing space around you.
+  revive() {
+    this.alive = true;
+    this.hp = PLAYER_CFG.maxHp;
+    this.place(this.deathX, this.deathZ);
+    this.state = 'getup';
+    this.t = 0;
+    this.invuln = 2.2;
+    this.hitCount = 0;
   }
 
   update(dt) {
     const c = PLAYER_CFG, I = Input, g = this.g;
     this.t += dt;
     this.time += dt;
-    this.coyote -= dt; this.jumpBuf -= dt; this.atkBuf -= dt; this.dashBuf -= dt;
-    this.dashCd -= dt; this.invuln -= dt; this.comboT -= dt; this.dropT -= dt;
+    this.jumpBuf -= dt; this.atkBuf -= dt; this.backBuf -= dt; this.magicBuf -= dt;
+    this.invuln -= dt; this.comboT -= dt; this.hitCountT -= dt;
+    if (this.hitCountT <= 0) this.hitCount = 0;
     this.squash = approach(this.squash, 0, dt * 5);
+    const minX = g.cam.x + 6, maxX = g.cam.x + g.viewW - 6;
 
     if (this.state === 'dead') {
       this.deathT += dt;
-      this.vx = approach(this.vx, 0, 1600 * dt);
-      this.vy = Math.min(this.vy + c.gravity * dt, c.maxFall);
-      moveBody(this, dt, g.arena);
+      if (this.onGround) this.vx = approach(this.vx, 0, 1600 * dt);
+      moveActor(this, dt, minX, maxX, true);
+      if (!this.onGround || this.deathT < 0.05) { this.deathX = this.cx; this.deathZ = this.z; }
       if (this.deathT > 0.5 && this.deathT < 1.5 && Math.random() < 0.7) {
-        FX.particle(this.deathX + rand(-12, 12), this.deathY - rand(0, 48), rand(-20, 20), -rand(40, 140), rand(0.6, 1.2), rand(2, 4), false, -60, 1);
+        FX.particle(this.deathX + rand(-12, 12), FLOOR_Y + this.deathZ - rand(0, 48), rand(-20, 20), -rand(40, 140), rand(0.6, 1.2), rand(2, 4), false, -60, 1);
       }
+      if (this.deathT >= 1.9 && !this.reported) { this.reported = true; g.onPlayerFallen(); }
       return;
     }
 
     const mx = this.control ? I.axisX() : 0;
+    const mz = this.control ? I.axisZ() : 0;
     if (this.control) {
-      if (I.pressed.jump) this.jumpBuf = c.jumpBuffer;
+      if (I.pressed.jump) this.jumpBuf = 0.1;
       if (g.combatAllowed) {
         if (I.pressed.attack) this.atkBuf = 0.2;
-        if (I.pressed.dash) this.dashBuf = 0.12;
+        if (I.pressed.back) this.backBuf = 0.15;
+        if (I.pressed.magic) this.magicBuf = 0.15;
       }
     }
-    if (this.onGround) this.coyote = c.coyote;
 
     switch (this.state) {
-      case 'normal': this.updateNormal(dt, mx); break;
-      case 'attack': this.updateAttack(dt, mx); break;
-      case 'dash': this.updateDash(dt); break;
+      case 'normal': this.updateNormal(dt, mx, mz); break;
+      case 'attack': this.updateAttack(dt); break;
+      case 'grab': this.updateGrab(dt, mx); break;
+      case 'throw':
+        this.vx = approach(this.vx, 0, 2000 * dt);
+        if (this.t >= 0.36) this.state = 'normal';
+        break;
       case 'hurt':
         this.vx = approach(this.vx, 0, 900 * dt);
-        if (this.t >= c.hurtStun) this.state = 'normal';
+        if (this.t >= c.hurtStun && this.onGround) this.state = 'normal';
+        break;
+      case 'down':
+        if (this.lying) {
+          this.vx = approach(this.vx, 0, 1400 * dt);
+          this.downT += dt;
+          if (this.downT >= c.downTime) { this.state = 'getup'; this.t = 0; }
+        }
+        break;
+      case 'getup':
+        this.vx = 0; this.vz = 0;
+        if (this.t >= c.getupTime) { this.state = 'normal'; this.invuln = Math.max(this.invuln, c.getupInvuln); }
+        break;
+      case 'magic':
+        this.vx = 0; this.vz = 0;
+        if (this.t >= MAGIC_CFG.castTime) this.state = 'normal';
         break;
     }
 
-    if (this.state !== 'dash') {
-      if (I.released.jump && this.vy < 0 && this.state !== 'hurt') this.vy *= c.jumpCut;
-      let gm = this.vy > 0 ? c.fallMul : 1;
-      if (this.state === 'attack' && this.atk.air && this.atkPhase !== 'recovery' && this.vy > -100) gm *= 0.5;
-      this.vy = Math.min(this.vy + c.gravity * gm * dt, c.maxFall);
-    }
+    // air slashes hang for a moment
+    if (this.state === 'attack' && this.atk.air && this.atkPhase !== 'recovery' && this.vy > -100) this.vy -= GRAVITY * 0.5 * dt;
 
-    this.dropping = this.dropT > 0;
     const wasGround = this.onGround;
     const fallSpeed = this.vy;
-    moveBody(this, dt, g.arena);
+    moveActor(this, dt, minX, maxX, true);
     if (this.onGround) {
-      this.airDash = true;
       this.airAttacks = 0;
-      this.pogoUsed = false;
       if (!wasGround) {
         this.squash = clamp(fallSpeed / 1100, 0.2, 1);
-        FX.dust(this.cx, this.bottom, 6);
-        if (fallSpeed > 500) Sound.land();
+        FX.dust(this.cx, this.screenY, 6);
+        if (this.state === 'down' && !this.lying) {
+          this.lying = true;
+          this.downT = 0;
+          FX.dust(this.cx, this.screenY, 10);
+          FX.shake(0.1);
+          Sound.land();
+        } else if (fallSpeed > 500) Sound.land();
+        if (this.state === 'attack' && this.atk.air) { this.state = 'normal'; this.atk = null; this.hitActive = false; }
       }
     }
 
-    this.runPhase += Math.abs(this.vx) * dt * 0.042;
+    this.runPhase += Math.hypot(this.vx, this.vz) * dt * 0.042;
+    if (this.running && this.onGround && Math.random() < 0.3) FX.dust(this.cx - this.facing * 8, this.screenY, 1, -this.facing);
 
     if (this.hitActive) placeBox(this.hitBox, this.cx, this.bottom, this.atk.box, this.facing);
   }
 
-  updateNormal(dt, mx) {
+  updateNormal(dt, mx, mz) {
     const c = PLAYER_CFG, I = Input;
-    const speed = c.runSpeed * this.speedMul;
-    const accel = this.onGround ? (mx ? c.groundAccel : c.groundDecel) : (mx ? c.airAccel : c.airDecel);
-    this.vx = approach(this.vx, mx * speed, accel * dt);
-    if (mx) this.facing = mx;
+    // running: double-tap a direction, or hold run
+    if (I.doubleTap && I.doubleTap === mx) this.running = true;
+    if (I.isDown('run') && mx !== 0) this.running = true;
+    if (mx === 0 || (this.running && mx !== this.runDir && this.runDir !== 0)) this.running = I.isDown('run') && mx !== 0;
+    this.runDir = this.running ? mx : 0;
 
-    if (this.jumpBuf > 0 && this.onGround && this.onPlatform && I.isDown('down')) {
-      this.dropT = 0.22; this.jumpBuf = 0; this.onGround = false; this.coyote = 0;
-    } else if (this.jumpBuf > 0 && (this.onGround || this.coyote > 0)) {
+    if (this.onGround) {
+      const sx = this.running ? c.runSpeed : c.walkSpeed;
+      const sz = c.depthSpeed * (this.running ? 0.5 : 1);
+      this.vx = approach(this.vx, mx * sx * this.speedMul, c.accel * dt);
+      this.vz = approach(this.vz, mz * sz * this.speedMul, c.accel * dt);
+      if (mx) this.facing = mx;
+    } else {
+      // jumps are committed, with a little steering
+      this.vx = approach(this.vx, mx ? mx * Math.max(c.walkSpeed, Math.abs(this.vx)) : this.vx, 700 * dt);
+      this.vz = approach(this.vz, mz * c.depthSpeed * 0.6, 500 * dt);
+    }
+
+    if (this.onGround && (this.backBuf > 0 || (this.jumpBuf > 0 && this.atkBuf > 0))) {
+      this.backBuf = 0; this.jumpBuf = 0; this.atkBuf = 0;
+      this.beginAttack(PLAYER_ATTACKS.back);
+      return;
+    }
+    if (this.onGround && this.magicBuf > 0) {
+      this.magicBuf = 0;
+      if (this.pots > 0) { this.startMagic(); return; }
+    }
+    if (this.jumpBuf > 0 && this.onGround) {
       this.vy = -c.jumpVel;
+      if (this.running) this.vx = this.facing * c.runSpeed * c.runJumpBoost;
       this.onGround = false;
-      this.coyote = 0;
       this.jumpBuf = 0;
       this.squash = -0.8;
-      FX.dust(this.cx, this.bottom, 5);
+      FX.dust(this.cx, this.screenY, 5);
       Sound.jump();
     }
-
-    if (this.dashBuf > 0 && this.dashCd <= 0 && (this.onGround || this.airDash)) this.startDash(mx);
-    else if (this.atkBuf > 0) this.startAttack(mx);
-  }
-
-  startDash(mx) {
-    const c = PLAYER_CFG;
-    const dir = mx || this.facing;
-    this.facing = dir;
-    this.dashDir = dir;
-    this.state = 'dash';
-    this.t = 0;
-    this.dashBuf = 0;
-    this.dashCd = c.dashCooldown;
-    this.invuln = Math.max(this.invuln, c.dashInvuln);
-    this.vx = dir * c.dashSpeed;
-    this.vy = 0;
-    if (!this.onGround) this.airDash = false;
-    this.atk = null;
-    this.hitActive = false;
-    this.combo = 0;
-    this.ghostT = 0;
-    FX.dust(this.cx, this.bottom, 5, -dir);
-    FX.ring(this.cx, this.cy, 4, 30, 0.2, false, 2);
-    Sound.dash();
-  }
-
-  updateDash(dt) {
-    const c = PLAYER_CFG;
-    this.vx = this.dashDir * c.dashSpeed;
-    this.vy = 0;
-    this.ghostT -= dt;
-    if (this.ghostT <= 0) {
-      this.ghostT = 0.028;
-      this.computePose();
-      FX.ghost(this.pose);
-    }
-    if (this.t >= c.dashTime) {
-      this.state = 'normal';
-      this.vx = this.dashDir * c.runSpeed;
-    }
+    if (this.atkBuf > 0) this.startAttack(mx);
   }
 
   startAttack(mx) {
     const c = PLAYER_CFG;
     this.atkBuf = 0;
-    if (mx) this.facing = mx;
     if (!this.onGround) {
       if (this.airAttacks >= c.maxAirAttacks) return;
       this.airAttacks++;
       this.beginAttack(PLAYER_ATTACKS.air);
       return;
     }
+    if (this.running) { this.beginAttack(PLAYER_ATTACKS.dash); return; }
+    if (mx) this.facing = mx;
+    const target = this.g.findGrabTarget(this);
+    if (target) { this.startGrab(target); return; }
     if (this.comboT <= 0) this.combo = 0;
     const key = this.combo === 2 ? 'a3' : this.combo === 1 ? 'a2' : 'a1';
     this.beginAttack(PLAYER_ATTACKS[key]);
@@ -319,16 +378,16 @@ class Player {
     this.t = 0;
     this.hitActive = false;
     this.comboT = 0;
-    if (a.heavy) Sound.windup();
+    this.running = false;
+    if (a.heavy && a.name !== 'dash') Sound.windup();
   }
 
-  updateAttack(dt, mx) {
+  updateAttack(dt) {
     const a = this.atk, c = PLAYER_CFG;
     this.atkT += dt;
-    if (a.air) {
-      this.vx = approach(this.vx, mx * c.runSpeed * 0.8, c.airAccel * 0.6 * dt);
-    } else {
-      this.vx = approach(this.vx, 0, (this.onGround ? 2600 : 900) * dt);
+    if (!a.air) {
+      this.vx = approach(this.vx, 0, (a.name === 'dash' ? 900 : 2600) * dt);
+      this.vz = approach(this.vz, 0, 2000 * dt);
     }
 
     if (this.atkPhase === 'startup' && this.atkT >= a.startup) {
@@ -336,9 +395,9 @@ class Player {
       this.atkT -= a.startup;
       this.attackId++;
       this.hitActive = true;
-      if (!a.air && this.onGround) this.vx = this.facing * a.lunge;
+      if (!a.air && this.onGround && a.lunge) this.vx = this.facing * a.lunge;
       FX.slash(this, a);
-      Sound.swing(a.heavy);
+      Sound.swing(a.heavy || a.bothSides);
       if (a.heavy) FX.shake(0.06);
     }
     if (this.atkPhase === 'active' && this.atkT >= a.active) {
@@ -347,23 +406,14 @@ class Player {
       this.hitActive = false;
     }
     if (this.atkPhase === 'recovery') {
-      // chain into the next swing
-      if (this.atkBuf > 0 && this.atkT >= a.chainAfter) {
-        if (!a.air && a.next && this.onGround) {
-          this.atkBuf = 0;
-          if (mx) this.facing = mx;
-          this.combo = a.comboIndex;
-          this.beginAttack(PLAYER_ATTACKS[a.next]);
-          return;
-        }
-        if (a.air && !this.onGround && this.airAttacks < c.maxAirAttacks) {
-          this.startAttack(mx);
-          return;
-        }
-      }
-      // evasive cancel out of recovery (never out of startup/active)
-      if (this.dashBuf > 0 && this.dashCd <= 0 && this.atkT >= a.dashCancel && (this.onGround || this.airDash)) {
-        this.startDash(mx);
+      if (this.atkBuf > 0 && this.atkT >= a.chainAfter && a.next && this.onGround) {
+        this.atkBuf = 0;
+        const mx = this.control ? Input.axisX() : 0;
+        if (mx) this.facing = mx;
+        this.combo = a.comboIndex;
+        const target = this.g.findGrabTarget(this);
+        if (target) { this.startGrab(target); return; }
+        this.beginAttack(PLAYER_ATTACKS[a.next]);
         return;
       }
       if (this.atkT >= a.recovery) {
@@ -374,55 +424,120 @@ class Player {
     }
   }
 
+  // ------------------------------------------------ grab / knee / throw
+  startGrab(e) {
+    this.state = 'grab';
+    this.t = 0;
+    this.grabbed = e;
+    this.knees = 0;
+    this.kneeT = 0.15;
+    this.vx = 0; this.vz = 0;
+    this.running = false;
+    e.grabbedBy(this);
+    Sound.grab();
+  }
+
+  updateGrab(dt, mx) {
+    const e = this.grabbed, G = GRAB_CFG;
+    if (!e || !e.active || e.state !== 'grabbed') { this.grabbed = null; this.state = 'normal'; return; }
+    this.vx = 0; this.vz = 0;
+    e.x = this.cx + this.facing * 20 - e.w / 2;
+    e.z = this.z;
+    e.y = -e.h;
+    e.facing = -this.facing;
+    this.kneeT -= dt;
+    if (this.atkBuf > 0 && this.kneeT <= 0 && this.knees < G.knees) {
+      this.atkBuf = 0;
+      this.knees++;
+      this.kneeT = 0.24;
+      this.g.kneeHit(e, this);
+      if (!e.active || e.state !== 'grabbed') { this.grabbed = null; this.state = 'normal'; }
+      return;
+    }
+    if ((this.atkBuf > 0 && this.knees >= G.knees && this.kneeT <= 0) || mx === -this.facing || this.t >= G.holdTime) {
+      this.atkBuf = 0;
+      this.grabbed = null;
+      e.throwBy(this, -this.facing);
+      this.state = 'throw';
+      this.t = 0;
+      Sound.swing(true);
+      FX.shake(0.1);
+    }
+  }
+
+  // ------------------------------------------------ magic
+  startMagic() {
+    const level = this.pots;
+    this.pots = 0;
+    this.state = 'magic';
+    this.t = 0;
+    this.vx = 0; this.vz = 0;
+    this.running = false;
+    this.g.castMagic(level);
+  }
+
+  // ------------------------------------------------ drawing
   // Blade angle (local, facing right) for the current state.
   swordAngle() {
     if (this.state === 'attack' && this.atk) {
       const a = this.atk;
       if (this.atkPhase === 'startup') {
-        const windBack = a.heavy ? a.sweep[0] - 0.25 : a.sweep[0];
+        const windBack = a.heavy && a.name !== 'dash' ? a.sweep[0] - 0.25 : a.sweep[0];
         return lerp(this.atkFrom, windBack, easeOutCubic(clamp(this.atkT / a.startup, 0, 1)));
       }
       if (this.atkPhase === 'active') return lerp(a.sweep[0], a.sweep[1], easeOutCubic(clamp(this.atkT / a.active, 0, 1)));
       const k = clamp((this.atkT / a.recovery - 0.45) / 0.55, 0, 1);
-      return lerp(a.sweep[1], SWORD_REST, easeInOutSine(k));
+      const end = a.bothSides ? a.sweep[1] - TAU : a.sweep[1];
+      return lerp(end, SWORD_REST, easeInOutSine(k));
     }
-    if (this.state === 'dash') return 2.85;
+    if (this.state === 'grab') return this.kneeT > 0.12 ? -0.4 : -1.2;
+    if (this.state === 'throw') return lerp(-0.3, -3.0, easeOutCubic(clamp(this.t / 0.25, 0, 1)));
+    if (this.state === 'magic') return -Math.PI / 2 + Math.sin(this.t * 40) * 0.03 * (this.t < MAGIC_CFG.strikeAt ? 1 : 0);
     if (this.state === 'hurt') return -1.2;
+    if (this.state === 'down' || this.state === 'getup') return 0.6;
     if (!this.onGround) return this.vy < 0 ? -2.0 : -2.55;
-    const run = Math.min(1, Math.abs(this.vx) / PLAYER_CFG.runSpeed);
-    return SWORD_REST + run * 0.25 + Math.sin(this.runPhase * 2) * 0.05 * run + Math.sin(this.time * 2) * 0.03;
+    if (this.running) return 2.8;
+    const run = Math.min(1, Math.hypot(this.vx, this.vz) / PLAYER_CFG.walkSpeed);
+    return SWORD_REST + run * 0.2 + Math.sin(this.runPhase * 2) * 0.05 * run + Math.sin(this.time * 2) * 0.03;
   }
 
   computePose() {
     const P = this.pose;
-    P.x = this.cx; P.y = this.bottom; P.facing = this.facing; P.time = this.time;
+    P.x = this.cx; P.y = this.screenY; P.facing = this.facing; P.time = this.time;
     P.sword = this.swordAngle();
-    const run = Math.min(1, Math.abs(this.vx) / PLAYER_CFG.runSpeed);
-    if (this.state === 'dash') {
-      P.legA = 0.9; P.legB = -0.7; P.lean = 0.35;
-    } else if (!this.onGround) {
+    const speed = Math.hypot(this.vx, this.vz);
+    const run = Math.min(1, speed / PLAYER_CFG.walkSpeed);
+    const s = Math.sin(this.runPhase);
+    if (!this.onGround && this.state !== 'down') {
       P.legA = this.vy < 0 ? 0.7 : 0.3; P.legB = this.vy < 0 ? -0.15 : -0.5; P.lean = 0.05;
     } else if (this.state === 'attack') {
       P.legA = 0.6; P.legB = -0.5;
-      P.lean = this.atkPhase === 'startup' ? (this.atk.heavy ? -0.15 : -0.05) : 0.2;
+      P.lean = this.atkPhase === 'startup' ? (this.atk.heavy ? -0.15 : -0.05) : (this.atk.name === 'dash' ? 0.35 : 0.2);
+    } else if (this.state === 'grab') {
+      const kneeing = this.kneeT > 0.1;
+      P.legA = kneeing ? 1.6 : 0.3; P.legB = -0.3; P.lean = kneeing ? 0.15 : 0.05;
+    } else if (this.state === 'throw' || this.state === 'magic') {
+      P.legA = 0.5; P.legB = -0.5; P.lean = this.state === 'throw' ? -0.25 : 0;
     } else if (run > 0.08) {
-      const s = Math.sin(this.runPhase);
-      P.legA = s * 0.8; P.legB = -s * 0.8; P.lean = 0.14 * run;
+      const amp = this.running ? 1.0 : 0.8;
+      P.legA = s * amp; P.legB = -s * amp; P.lean = (this.running ? 0.3 : 0.12) * run;
     } else {
       P.legA = 0.2; P.legB = -0.22; P.lean = 0;
     }
     if (this.state === 'hurt') P.lean = -0.3;
+    if (this.state === 'down') { P.lean = this.lying ? -1.45 : -0.8; P.legA = 0.4; P.legB = 0.1; }
+    if (this.state === 'getup') { const k = clamp(this.t / PLAYER_CFG.getupTime, 0, 1); P.lean = lerp(-1.45, 0, easeOutCubic(k)); P.legA = lerp(1.2, 0.2, k); P.legB = -0.2; }
     const sq = this.squash;
     P.sx = 1 + sq * 0.2;
     P.sy = 1 - sq * 0.2;
-    P.cloak = Math.min(1, Math.abs(this.vx) / 420 + (this.onGround ? 0 : 0.35));
+    P.cloak = Math.min(1, Math.abs(this.vx) / 360 + (this.onGround ? 0 : 0.35));
   }
 
   draw(ctx) {
     if (this.state === 'dead') { this.drawDeath(ctx); return; }
     this.computePose();
-    // flicker while in post-hit invulnerability (not while dashing)
-    if (this.invuln > 0 && this.state !== 'dash' && Math.floor(this.time * 18) % 2 === 0) ctx.globalAlpha = 0.35;
+    const blink = this.invuln > 0 || this.state === 'getup';
+    if (blink && this.state !== 'magic' && Math.floor(this.time * 18) % 2 === 0) ctx.globalAlpha = 0.35;
     drawFigure(ctx, this.pose, true);
     ctx.globalAlpha = 1;
   }
@@ -430,13 +545,13 @@ class Player {
   drawDeath(ctx) {
     const t = this.deathT;
     const P = this.pose;
+    const Y = FLOOR_Y + this.deathZ;
     const fall = easeOutCubic(clamp(t / 0.5, 0, 1));
     // the sword is left planted in the ground
-    const swordLean = 1.45;
     ctx.save();
-    ctx.translate(this.deathX + this.deathFacing * 26, this.deathY + 16);
+    ctx.translate(this.deathX + this.deathFacing * 26, Y + 12);
     ctx.scale(this.deathFacing, 1);
-    ctx.rotate(-Math.PI / 2 + (Math.PI / 2 - swordLean) + (1 - fall) * 0.8);
+    ctx.rotate(-1.45 + (1 - fall) * 0.8);
     ctx.fillStyle = '#000';
     const L = PLAYER_CFG.bladeLength;
     ctx.beginPath();
@@ -449,17 +564,16 @@ class Player {
 
     const alpha = t < 0.6 ? 1 : Math.max(0, 1 - (t - 0.6) / 0.9);
     if (alpha <= 0) return;
-    P.x = this.deathX; P.y = this.deathY; P.facing = this.deathFacing; P.time = this.time;
+    P.x = this.deathX; P.y = Y; P.facing = this.deathFacing; P.time = this.time;
     P.sword = lerp(-1.2, 1.3, fall);
     P.legA = lerp(0.2, 1.4, fall); P.legB = lerp(-0.2, 0.2, fall);
     P.lean = lerp(0, 0.5, fall);
     P.sx = 1; P.sy = lerp(1, 0.72, fall);
     P.cloak = 0;
     ctx.globalAlpha = alpha;
-    // draw kneeling body without the sword (it is planted separately)
     ctx.save();
     ctx.beginPath();
-    ctx.rect(this.deathX - 200, this.deathY - 200, 400, 200);
+    ctx.rect(this.deathX - 200, Y - 200, 400, 200);
     ctx.clip();
     drawFigureBodyOnly(ctx, P);
     ctx.restore();

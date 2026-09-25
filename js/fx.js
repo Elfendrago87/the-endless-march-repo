@@ -126,7 +126,7 @@ const FX = {
       const aEnd = lerp(s.a0, s.a1, easeOutCubic(prog));
       const aStart = lerp(s.a0, aEnd, s.t > s.dur ? (s.t - s.dur) / 0.14 : 0);
       ctx.save();
-      ctx.translate(o.x + o.w / 2 + s.facing * 3, o.y + o.h - 34);
+      ctx.translate(o.x + o.w / 2 + s.facing * 3, FLOOR_Y + o.z + o.y + o.h - 34);
       ctx.scale(s.facing, 1);
       ctx.globalAlpha = 0.9 * fade;
       ctx.fillStyle = '#000';
