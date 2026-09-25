@@ -51,13 +51,15 @@ const FX = {
     r.white = !!white; r.width = width || 3; r.fill = !!fill;
   },
 
-  slash(owner, atk) {
+  // A crescent swept behind a blade. `sweep`/`dur` default to the attack's own.
+  slash(owner, atk, sweep, dur) {
     const s = this.slashes.obtain();
     if (!s) return;
+    const sw = sweep || atk.sweep;
     s.active = true; s.owner = owner; s.facing = owner.facing;
-    s.a0 = atk.sweep[0]; s.a1 = atk.sweep[1];
-    s.t = 0; s.dur = atk.active; s.thick = atk.thickness;
-    s.r = PLAYER_CFG.bladeLength + 22;
+    s.a0 = sw[0]; s.a1 = sw[1];
+    s.t = 0; s.dur = dur || atk.active; s.thick = atk.thickness;
+    s.r = atk.slashR || PLAYER_CFG.bladeLength + 22;
   },
 
   ghost(pose) {

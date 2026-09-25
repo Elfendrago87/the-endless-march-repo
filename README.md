@@ -44,12 +44,29 @@ If your browser blocks local files, serve the folder instead:
 npx http-server .     # or: python3 -m http.server
 ```
 
+## Classes
+
+After the title screen you choose one of three paths. If you die, the run restarts with the same class.
+
+| | Warrior | Archer | Rogue |
+|---|---|---|---|
+| HP | 100 | 90 | 85 |
+| Weapon | the enormous sword | a bow | twin daggers |
+| Combo | three slashes, the last knocks down | two arrows, then a **fire arrow** that pierces, knocks down and sets enemies burning | two **twin strikes** (two cuts per press), then a cross cut that knocks down |
+| Running attack | shoulder-first lunge | skid and loose a fan of three arrows across the lanes | **dash twin strike**: lunge through the enemy line, cutting twice, untouchable while it lasts |
+| In the air | downward slash | an arrow angled down at the floor | dagger dive |
+| Back attack | full sword spin | bow sweep | blade spin |
+| Special | – | aim assist: an arrow settles into the lane of the enemy in front, and tilts up at enemies in the air | Shift/C is an **evasive dash** in any direction (up and down too) with brief invulnerability; attack out of it for the dash twin strike |
+
+Arrows fly down the lane you stand in, stick in the ground where they land, and glance off a raised shield. A burning enemy takes 4 damage every half second for about two seconds. All three classes can grab and throw, back attack, and cast magic.
+
 ## Controls
 
 | Action | Keyboard | Mouse / Gamepad |
 |---|---|---|
 | Move (up/down walks into and out of the screen) | arrows / WASD | stick / d-pad |
-| Run | double-tap ← or →, or hold Shift / C | double-tap, or hold RB |
+| Run | double-tap ← or →, or hold Shift / C (Warrior, Archer) | double-tap, or hold RB |
+| Dash (Rogue only; you can't be hit while dashing) | Shift / C, in any direction | RB |
 | Jump | Space / Z / K | A |
 | Attack (repeat for a three-hit combo) | X / J | left click / X |
 | Back attack (hits both sides) | F / U, or Jump + Attack together | right click / B |
@@ -61,7 +78,7 @@ npx http-server .     # or: python3 -m http.server
 
 - **The road.** The screen locks when a wave begins. Enemies walk in from both edges or rise out of the ground. When the wave is cleared, **GO →** appears and you walk on to the next one.
 - **Depth.** Attacks only land when you and your target share a lane. Line up to hit, and step up or down out of a lane to dodge thrown axes, lunges and dashes.
-- **Sword combo.** Hit 1 does 15 damage, hit 2 does 18, hit 3 does 28. The third hit knocks enemies to the floor.
+- **Combos.** Every class has a three-part combo whose last hit knocks enemies to the floor. The Warrior's sword does 15, 18, then 28 damage.
 - **Running attack.** Attack while running for a knockdown lunge that carries your momentum.
 - **Jump attack.** A slash in the air that knocks enemies down.
 - **Back attack.** A full spin that clears both sides. Use it when you're surrounded.
@@ -94,14 +111,14 @@ Enemies take turns: only a few can wind up an attack at the same time, and the r
 ```
 index.html          canvas + script tags
 js/util.js          math, AABB helpers, object Pool, the outline drawing kit
-js/data.js          ALL tuning: player feel, attacks, grab/magic, enemies, stage, the 10 waves
+js/data.js          ALL tuning: player feel, the three classes and their attacks, grab/magic, enemies, stage, the 10 waves
 js/audio.js         procedural WebAudio sounds + the door drone
 js/input.js         keyboard / mouse / gamepad mapped to actions (double-tap run)
 js/world.js         Stage (parallax horizon, floor, foreground) + belt-scroller movement
 js/fx.js            pooled particles, slashes, rings, screen shake
-js/player.js        movement, run, combo, grab/knee/throw, magic, knockdown, lives, drawing
+js/player.js        classes, movement, run/dash, combos, arrows, grab/knee/throw, magic, knockdown, lives, drawing
 js/enemies.js       Enemy class: per-archetype AI on the floor plane + outlined figures
-js/projectiles.js   pooled thrown axes (parryable) and item pickups
+js/projectiles.js   pooled enemy axes (parryable), the Archer's arrows (fire, pierce, burn) and item pickups
 js/waves.js         data-driven WaveManager (required / spawned / alive / defeated)
 js/game.js          game states, camera locks, spawning, hits, magic, rest, door, HUD, ending
 ```
@@ -116,4 +133,5 @@ Waves are defined only as data. Each wave sets a camera `lockX` on the road and 
 
 - `?wave=N` starts at wave N. Running out of lives then restarts at wave N.
 - `?god` makes you invulnerable.
+- `?class=warrior|archer|rogue` pre-selects a class on the selection screen.
 - `?debug` lets you press `N` to clear the current wave and `H` to heal and fill your pots.

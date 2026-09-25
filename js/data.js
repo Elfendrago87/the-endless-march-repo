@@ -76,6 +76,104 @@ const PLAYER_ATTACKS = {
   },
 };
 
+// Archer: arrows fly down the lane you stand in. `shot` spawns arrows at the
+// start of the active frames instead of a sword hitbox. The third shot of the
+// combo is a fire arrow: it pierces, knocks down and sets its targets burning.
+const ARCHER_ATTACKS = {
+  a1: {
+    name: 'a1', startup: 0.11, active: 0.05, recovery: 0.2, chainAfter: 0.05, next: 'a2', comboIndex: 1,
+    sweep: [0, 0], depth: 14,
+    shot: { speed: 820, dmg: 12, kb: 160, kbUp: -80, stagger: 0.3 },
+  },
+  a2: {
+    name: 'a2', startup: 0.11, active: 0.05, recovery: 0.2, chainAfter: 0.05, next: 'a3', comboIndex: 2,
+    sweep: [0, 0], depth: 14,
+    shot: { speed: 820, dmg: 12, kb: 160, kbUp: -80, stagger: 0.3 },
+  },
+  a3: {
+    name: 'a3', startup: 0.3, active: 0.05, recovery: 0.36, chainAfter: 99, next: null, comboIndex: 0, heavy: true,
+    sweep: [0, 0], depth: 14,
+    shot: { speed: 900, dmg: 20, kb: 420, kbUp: -420, stagger: 0.5, knockdown: true, heavy: true, fire: true, pierce: true },
+  },
+  air: {
+    name: 'air', startup: 0.08, active: 0.05, recovery: 0.24, chainAfter: 99, next: null, comboIndex: 0, air: true,
+    sweep: [0.6, 0.6], depth: 14,
+    shot: { speed: 760, dmg: 13, kb: 220, kbUp: -200, stagger: 0.35, knockdown: true, angle: 0.6 },
+  },
+  dash: { // running attack: skid to a stop and loose a fan of three arrows across the lanes
+    name: 'dash', startup: 0.1, active: 0.05, recovery: 0.4, chainAfter: 99, next: null, comboIndex: 0,
+    sweep: [0, 0], depth: 14, lunge: 60,
+    shot: { speed: 800, dmg: 11, kb: 280, kbUp: -320, stagger: 0.4, knockdown: true, spread: [-34, 0, 34] },
+  },
+  back: { // a sweeping kick with the bow that clears both sides
+    name: 'back', dmg: 11, startup: 0.06, active: 0.16, recovery: 0.4, chainAfter: 99, next: null, comboIndex: 0,
+    knockdown: true, depth: 24, lunge: 0, kb: 340, kbUp: -400, stagger: 0.45, hitstop: 0.06, shake: 0.15, bothSides: true,
+    box: { x: -70, y: -60, w: 140, h: 62 }, sweep: [-2.9, 3.4], thickness: 14, slashR: 58,
+  },
+};
+
+// Rogue: two daggers. Every press is a twin strike - two quick hits (`hits`
+// = active windows inside the active phase, each a fresh hit). The run key is
+// the evasive dash; attacking out of a dash or a run is the dash twin strike,
+// which cuts straight through the enemy line.
+const ROGUE_ATTACKS = {
+  a1: {
+    name: 'a1', dmg: 8, startup: 0.05, active: 0.17, recovery: 0.16, chainAfter: 0.04, next: 'a2', comboIndex: 1, depth: 16,
+    lunge: 90, kb: 110, kbUp: -60, stagger: 0.35, hitstop: 0.03, shake: 0.05,
+    hits: [{ at: 0, dur: 0.06 }, { at: 0.09, dur: 0.06 }],
+    box: { x: 2, y: -56, w: 62, h: 54 }, sweep: [-1.3, 0.9], sweep2: [1.2, -0.9], thickness: 10, slashR: 44,
+  },
+  a2: {
+    name: 'a2', dmg: 8, startup: 0.05, active: 0.17, recovery: 0.16, chainAfter: 0.04, next: 'a3', comboIndex: 2, depth: 16,
+    lunge: 100, kb: 130, kbUp: -70, stagger: 0.38, hitstop: 0.03, shake: 0.06,
+    hits: [{ at: 0, dur: 0.06 }, { at: 0.09, dur: 0.06 }],
+    box: { x: 2, y: -58, w: 64, h: 56 }, sweep: [1.1, -1.2], sweep2: [-1.0, 1.1], thickness: 10, slashR: 44,
+  },
+  a3: { // cross cut: both blades at once
+    name: 'a3', dmg: 18, startup: 0.12, active: 0.1, recovery: 0.32, chainAfter: 99, next: null, comboIndex: 0, heavy: true,
+    knockdown: true, depth: 20, lunge: 150, kb: 440, kbUp: -440, stagger: 0.55, hitstop: 0.08, shake: 0.28,
+    box: { x: -4, y: -64, w: 84, h: 66 }, sweep: [-2.0, 1.2], sweep2: [2.0, -1.2], thickness: 18, slashR: 50, cross: true,
+  },
+  air: {
+    name: 'air', dmg: 14, startup: 0.05, active: 0.14, recovery: 0.2, chainAfter: 99, next: null, comboIndex: 0, air: true,
+    knockdown: true, depth: 20, lunge: 0, kb: 280, kbUp: -360, stagger: 0.4, hitstop: 0.05, shake: 0.1,
+    box: { x: -16, y: -54, w: 82, h: 110 }, sweep: [-1.4, 2.2], sweep2: [-1.2, 2.0], thickness: 14, slashR: 48,
+  },
+  dash: { // dash twin strike: lunge through the line, two cuts, untouchable while it lasts
+    name: 'dash', dmg: 10, startup: 0.03, active: 0.24, recovery: 0.3, chainAfter: 99, next: null, comboIndex: 0,
+    knockdown: true, iframes: true, depth: 20, lunge: 560, kb: 360, kbUp: -380, stagger: 0.45, hitstop: 0.04, shake: 0.14,
+    hits: [{ at: 0, dur: 0.1 }, { at: 0.12, dur: 0.1 }],
+    box: { x: -14, y: -58, w: 74, h: 58 }, sweep: [-0.6, 0.5], sweep2: [0.6, -0.5], thickness: 12, slashR: 46,
+  },
+  back: { // blade spin
+    name: 'back', dmg: 7, startup: 0.05, active: 0.2, recovery: 0.36, chainAfter: 99, next: null, comboIndex: 0,
+    knockdown: true, depth: 24, lunge: 0, kb: 320, kbUp: -380, stagger: 0.4, hitstop: 0.04, shake: 0.12, bothSides: true,
+    hits: [{ at: 0, dur: 0.08 }, { at: 0.1, dur: 0.08 }],
+    box: { x: -64, y: -60, w: 128, h: 62 }, sweep: [-2.9, 3.4], sweep2: [0.3, 6.5], thickness: 12, slashR: 50,
+  },
+};
+
+// The three paths. `stats` override PLAYER_CFG for that class.
+const CLASSES = {
+  warrior: {
+    key: 'warrior', name: 'WARRIOR', weapon: 'sword', attacks: PLAYER_ATTACKS, rest: -2.35,
+    lines: ['the enormous sword.', 'slow, heavy, sweeping.', 'three-hit combo ends in a knockdown.'],
+    stats: { maxHp: 100 },
+  },
+  archer: {
+    key: 'archer', name: 'ARCHER', weapon: 'bow', attacks: ARCHER_ATTACKS, rest: 1.05,
+    lines: ['arrows down the lane you stand in.', 'every third shot is a fire arrow:', 'it pierces, and it burns.'],
+    stats: { maxHp: 90, walkSpeed: 170, depthSpeed: 118, runSpeed: 325 },
+  },
+  rogue: {
+    key: 'rogue', name: 'ROGUE', weapon: 'daggers', attacks: ROGUE_ATTACKS, rest: 1.25, rest2: 1.45,
+    lines: ['twin daggers. every strike cuts twice.', 'SHIFT dashes - untouchable while it lasts.', 'attack out of a dash: twin strike.'],
+    stats: { maxHp: 85, walkSpeed: 185, depthSpeed: 128, runSpeed: 350 },
+    dash: { speed: 640, time: 0.17, cooldown: 0.5, invuln: 0.22, strikeWindow: 0.15 },
+  },
+};
+const CLASS_ORDER = ['warrior', 'archer', 'rogue'];
+
 // Grab: attack point-blank into a staggered / idle small enemy.
 const GRAB_CFG = { range: 38, depth: 12, kneeDmg: 8, knees: 2, throwDmg: 20, splashDmg: 10, holdTime: 1.2 };
 

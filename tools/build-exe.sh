@@ -46,9 +46,17 @@ missing, the .exe falls back to a built-in copy.)
 The .exe is not code-signed, so Windows SmartScreen may warn the first time:
 choose "More info" -> "Run anyway".
 
+CLASSES
+  Warrior - the enormous sword. Heavy three-hit combo.
+  Archer  - arrows down your lane; every third shot is a fire arrow that
+            pierces and burns.
+  Rogue   - twin daggers, every strike cuts twice; an evasive dash.
+
 CONTROLS
   Move ............ Arrows / WASD (up and down walk into and out of the screen)
   Run ............. double-tap left/right, or hold Shift / C
+  Dash (Rogue) .... Shift / C - untouchable while dashing; attack out of it
+                    for the dash twin strike
   Jump ............ Space / Z / K
   Attack .......... X / J / left click (repeat for a three-hit combo)
   Back attack ..... F / right click, or Jump + Attack together

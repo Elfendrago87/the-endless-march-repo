@@ -40,6 +40,7 @@ class Enemy {
     this.hasToken = false; this.dying = false;
     this.ringOff = rand(0, 70); this.zOff = rand(-60, 60); this.rerollT = rand(1.5, 3);
     this.thrownBy = null; this.fleeing = false;
+    this.burnT = 0; this.burnTick = 0; this.lastArrowId = -1;
     this.active = true;
     return this;
   }
@@ -803,6 +804,13 @@ class Enemy {
     }
     inkFlash = false;
     ctx.restore();
+
+    // set alight by a fire arrow
+    if (this.burnT > 0 && alpha > 0.1) {
+      ctx.globalAlpha = Math.min(1, this.burnT * 2) * alpha;
+      drawFlames(ctx, this.cx, this.screenY - this.h * 0.35, this.anim + this.bob, 7, 3);
+      ctx.globalAlpha = 1;
+    }
 
     if (tele > 0 && alpha > 0.1) {
       ctx.globalAlpha = 0.25 + 0.65 * tele;

@@ -100,6 +100,13 @@ const Sound = {
   waveClear() { this.tone(220, 220, 0.6, 'sine', 0.14); this.tone(330, 330, 0.9, 'sine', 0.1); },
   death() { this.tone(200, 36, 1.4, 'sawtooth', 0.18); this.hiss(1.0, 0.2, 400, 0.6, 'lowpass', 80); },
   rumble() { this.hiss(0.5, 0.25, 120, 0.8, 'lowpass'); },
+  bowDraw() { this.hiss(0.12, 0.05, 2400, 4, 'bandpass', 1200); },
+  bow(fire) {
+    this.tone(180, 90, 0.12, 'triangle', 0.18);
+    this.hiss(0.1, 0.22, 3000, 1.2, 'highpass');
+    if (fire) this.hiss(0.5, 0.25, 700, 0.6, 'lowpass', 2400);
+  },
+  burn() { this.hiss(0.18, 0.1, 900, 0.7, 'bandpass', 400); },
   grab() { this.hiss(0.08, 0.3, 300, 1, 'lowpass'); this.tone(120, 80, 0.1, 'sine', 0.3); },
   pickup() { this.tone(880, 1320, 0.09, 'triangle', 0.09); this.tone(1320, 1760, 0.12, 'triangle', 0.06); },
   magic(level) {

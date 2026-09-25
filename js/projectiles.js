@@ -156,3 +156,99 @@ const Items = {
     }
   },
 };
+
+// The Archer's arrows. They fly down the lane they were loosed in (a fan
+// spreads across lanes), drop when fired from the air, stick in the ground
+// where they land, and are turned aside by a raised shield. Fire arrows pierce
+// every enemy in their path and set them burning.
+const Arrows = {
+  pool: new Pool(() => ({ active: false, x: 0, z: 0, y: 0, vx: 0, vy: 0, vz: 0, spec: null, atk: {}, id: 0, life: 0, stuck: 0, t: 0 }), 48),
+  serial: 0,
+
+  clear() { this.pool.clear(); },
+
+  fire(x, z, y, vx, vy, vz, spec) {
+    const a = this.pool.obtain();
+    if (!a) return;
+    a.active = true; a.x = x; a.z = z; a.y = y; a.vx = vx; a.vy = vy; a.vz = vz;
+    a.spec = spec; a.id = ++this.serial; a.life = 1.6; a.stuck = 0; a.t = 0;
+    const k = a.atk;
+    k.dmg = spec.dmg; k.kb = spec.kb; k.kbUp = spec.kbUp; k.stagger = spec.stagger;
+    k.knockdown = !!spec.knockdown; k.heavy = !!spec.heavy; k.magic = false;
+  },
+
+  update(dt, g) {
+    const items = this.pool.items;
+    for (let i = 0; i < items.length; i++) {
+      const a = items[i];
+      if (!a.active) continue;
+      a.t += dt;
+      if (a.stuck > 0) {
+        a.stuck -= dt;
+        if (a.stuck <= 0) a.active = false;
+        continue;
+      }
+      a.life -= dt;
+      a.x += a.vx * dt;
+      a.y += a.vy * dt;
+      a.z = clamp(a.z + a.vz * dt, 0, DEPTH);
+      if (a.spec.fire && Math.random() < 0.6) {
+        FX.particle(a.x - sign(a.vx) * 10, FLOOR_Y + a.z + a.y, -a.vx * 0.05, -rand(30, 90), rand(0.2, 0.4), rand(2, 3.5), false, -80, 2);
+      }
+      if (a.y >= -2) {
+        // into the ground: it stays there a moment
+        a.y = -2;
+        a.stuck = 0.9;
+        FX.dust(a.x, FLOOR_Y + a.z, 3);
+        continue;
+      }
+      if (a.life <= 0 || a.y < -600 || a.x < g.cam.x - 60 || a.x > g.cam.x + g.viewW + 60) { a.active = false; continue; }
+      const dir = sign(a.vx) || 1;
+      const tipX = a.x + dir * 10;
+      for (const e of g.enemies) {
+        if (!e.active || e.untouchable || e.lastArrowId === a.id) continue;
+        if (Math.abs(e.z - a.z) > 16) continue;
+        if (tipX < e.x - 4 || tipX > e.x + e.w + 4 || a.y < e.y - 8 || a.y > e.y + e.h + 4) continue;
+        e.lastArrowId = a.id;
+        const r = e.hit(a.atk, a.x - dir * 60, 0, g);
+        const sx = tipX, sy = FLOOR_Y + e.z + a.y;
+        if (r === 'blocked') {
+          // glances off the shield
+          FX.burst(sx, sy, 6, 240, { dir: -dir, streak: true, grav: 400 });
+          Sound.block();
+          a.active = false;
+          break;
+        }
+        if (r === 'hit') {
+          FX.ring(sx, sy, 3, a.spec.fire ? 44 : 26, 0.18, false, 3);
+          FX.burst(sx, sy, a.spec.fire ? 10 : 5, 320, { dir: dir, streak: true, grav: 500 });
+          Sound.hit(!!a.spec.heavy);
+          g.hitstop(a.spec.heavy ? 0.05 : 0.025);
+          if (a.spec.fire && e.ai !== 'thief') { e.burnT = 2.1; e.burnTick = 0.35; }
+          if (!a.spec.pierce) { a.active = false; break; }
+        }
+      }
+    }
+  },
+
+  drawShadows(ctx) {
+    ctx.fillStyle = INK;
+    for (const a of this.pool.items) {
+      if (!a.active || a.stuck > 0) continue;
+      ctx.fillRect(a.x - 8, FLOOR_Y + a.z - 1, 16, 1.5);
+    }
+  },
+
+  draw(ctx) {
+    for (const a of this.pool.items) {
+      if (!a.active) continue;
+      const y = FLOOR_Y + a.z + a.y;
+      let ux = a.vx, uy = a.vy;
+      if (a.stuck > 0) { ux = (a.spec.angle ? Math.cos(a.spec.angle) : 1) * (sign(a.vx) || 1); uy = 0.6; }
+      const len = Math.hypot(ux, uy) || 1;
+      ux /= len; uy /= len;
+      if (a.stuck > 0 && a.stuck < 0.3 && Math.floor(a.t * 12) % 2 === 0) continue;
+      drawArrowShape(ctx, a.x - ux * 30, y - uy * 30, a.x + ux * 4, y + uy * 4, a.spec.fire && a.stuck <= 0, a.t);
+    }
+  },
+};

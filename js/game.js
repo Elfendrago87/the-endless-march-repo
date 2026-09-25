@@ -3,6 +3,7 @@
 
 const STATE = {
   START: 'START',
+  SELECT: 'SELECT',             // choose Warrior / Archer / Rogue
   ADVANCE: 'ADVANCE',           // walking the road to the next wave (GO ->)
   WAVE_INTRO: 'WAVE_INTRO',     // camera locked, banner, player can move
   WAVE: 'WAVE',
@@ -34,6 +35,8 @@ class Game {
     const q = new URLSearchParams(location.search);
     this.debug = q.has('debug') || !!window.SEEK_TEST_BUILD;
     this.god = q.has('god');
+    this.classKey = CLASS_ORDER.includes(q.get('class')) ? q.get('class') : 'warrior';
+    this.selIndex = 0;
     this.firstWave = clamp((parseInt(q.get('wave'), 10) || 1) - 1, 0, WAVES.length - 1);
 
     this.time = 0;
@@ -55,7 +58,7 @@ class Game {
     Input.init(canvas);
     Input.onRawKey = (code) => {
       if (this.debug && code === 'KeyN') this.debugClearWave();
-      if (this.debug && code === 'KeyH') { this.player.hp = PLAYER_CFG.maxHp; this.player.pots = PLAYER_CFG.maxPots; }
+      if (this.debug && code === 'KeyH') { this.player.hp = this.player.maxHp; this.player.pots = PLAYER_CFG.maxPots; }
       if (code === 'KeyM' && Sound.out) Sound.out.gain.value = Sound.out.gain.value > 0 ? 0 : 0.5;
     };
     window.addEventListener('resize', () => this.resize());
@@ -123,6 +126,7 @@ class Game {
     Sound.droneStop(0.1);
     this.enemyPool.clear();
     Projectiles.clear();
+    Arrows.clear();
     Items.clear();
     FX.clear();
     this.waves.def = null;
@@ -137,6 +141,7 @@ class Game {
 
   toTitle() {
     this.resetWorld();
+    this.player.setClass(this.classKey);
     this.player.reset(200, DEPTH * 0.55);
     this.player.control = false;
     this.locked = true; this.lockX = 0;
@@ -149,6 +154,7 @@ class Game {
     this.resetWorld();
     const i = this.firstWave;
     const lock = WAVES[i].lockX;
+    this.player.setClass(this.classKey);
     this.player.reset(lock + 140, DEPTH * 0.55);
     this.hudAlpha = 1;
     this.locked = true; this.lockX = lock;
@@ -180,7 +186,7 @@ class Game {
     this.slowmo(0.3, 0.7);
     Sound.waveClear();
     for (const p of Projectiles.pool.items) if (p.active) Projectiles.kill(p);
-    if (!final) this.player.hp = Math.min(PLAYER_CFG.maxHp, this.player.hp + PLAYER_CFG.healBetweenWaves);
+    if (!final) this.player.hp = Math.min(this.player.maxHp, this.player.hp + PLAYER_CFG.healBetweenWaves);
   }
 
   startAdvance() {
@@ -216,7 +222,7 @@ class Game {
     this.fadeIn = Math.max(0, this.fadeIn - dt * 1.6);
     this.hurtFlash = Math.max(0, this.hurtFlash - dt * 3);
     this.night = approach(this.night, this.nightTarget, dt * 0.8);
-    const hudTarget = (this.state === STATE.START || this.state === STATE.DOOR || this.state === STATE.ENDING) ? 0 : 1;
+    const hudTarget = (this.state === STATE.START || this.state === STATE.SELECT || this.state === STATE.DOOR || this.state === STATE.ENDING) ? 0 : 1;
     this.hudAlpha = approach(this.hudAlpha, hudTarget, dt * 1.5);
 
     if (this.hitstopT > 0) {
@@ -233,8 +239,20 @@ class Game {
       case STATE.START:
         this.player.update(dt);
         FX.update(dt);
-        if (Input.anyPressed) this.startRun();
+        if (Input.anyPressed) { this.selIndex = Math.max(0, CLASS_ORDER.indexOf(this.classKey)); this.setState(STATE.SELECT); }
         break;
+
+      case STATE.SELECT: {
+        this.player.update(dt);
+        const n = CLASS_ORDER.length;
+        if (Input.pressed.left) { this.selIndex = (this.selIndex + n - 1) % n; Sound.pickup(); }
+        if (Input.pressed.right) { this.selIndex = (this.selIndex + 1) % n; Sound.pickup(); }
+        if (this.stateT > 0.2 && (Input.pressed.attack || Input.pressed.jump || Input.pressed.confirm)) {
+          this.classKey = CLASS_ORDER[this.selIndex];
+          this.startRun();
+        } else if (Input.pressed.pause) this.setState(STATE.START);
+        break;
+      }
 
       case STATE.ADVANCE: {
         this.updateWorld(sdt);
@@ -277,7 +295,7 @@ class Game {
         this.updateThieves(sdt);
         if (this.stateT >= 11) {
           this.nightTarget = 0;
-          this.player.hp = Math.min(PLAYER_CFG.maxHp, this.player.hp + PLAYER_CFG.restHeal);
+          this.player.hp = Math.min(this.player.maxHp, this.player.hp + PLAYER_CFG.restHeal);
           FX.ring(this.player.cx, this.player.screenY - 25, 8, 70, 0.6, false, 2);
           this.startAdvance();
         }
@@ -312,6 +330,8 @@ class Game {
       this.separateEnemies();
       this.resolveThrownBodies();
       Projectiles.update(dt, this);
+      Arrows.update(dt, this);
+      this.updateBurns(dt);
     }
     this.resolvePlayerHits();
     Items.update(dt, this);
@@ -446,6 +466,26 @@ class Game {
     } else e.setState('down');
   }
 
+  // Fire arrows leave enemies burning for a couple of seconds.
+  updateBurns(dt) {
+    for (const e of this.enemies) {
+      if (!e.active || e.burnT <= 0) continue;
+      if (e.dying || e.state === 'dead') { e.burnT = 0; continue; }
+      e.burnT -= dt;
+      e.burnTick -= dt;
+      if (e.burnTick <= 0) {
+        e.burnTick = 0.5;
+        e.hp -= 4;
+        e.flashT = 0.06;
+        Sound.burn();
+        if (e.hp <= 0) { e.die(-e.facing, 120, this); continue; }
+      }
+      if (Math.random() < 0.35) {
+        FX.particle(e.cx + rand(-8, 8), e.screenY - e.h * rand(0.3, 0.9), rand(-15, 15), -rand(40, 110), rand(0.3, 0.6), rand(2, 3.5), false, -60, 1.5);
+      }
+    }
+  }
+
   // ------------------------------------------------------------ magic
   castMagic(level) {
     const targets = [];
@@ -564,7 +604,7 @@ class Game {
   pickUp(kind, x, z) {
     const p = this.player;
     if (kind === 'pot') p.pots = Math.min(PLAYER_CFG.maxPots, p.pots + 1);
-    else p.hp = Math.min(PLAYER_CFG.maxHp, p.hp + PLAYER_CFG.foodHeal);
+    else p.hp = Math.min(p.maxHp, p.hp + PLAYER_CFG.foodHeal);
     FX.ring(x, FLOOR_Y + z - 10, 4, 36, 0.3, false, 2);
     Sound.pickup();
   }
@@ -808,6 +848,7 @@ class Game {
     }
     ctx.globalAlpha = 1;
     Projectiles.drawShadows(ctx);
+    Arrows.drawShadows(ctx);
     Items.draw(ctx);
 
     // actors, back to front
@@ -821,6 +862,7 @@ class Game {
     }
 
     Projectiles.draw(ctx);
+    Arrows.draw(ctx);
     this.drawMagic(ctx);
     FX.drawFront(ctx);
     if (doorShown) this.drawDoorLight(ctx);
@@ -832,7 +874,7 @@ class Game {
 
   // Edge chevrons for threats (and the door) outside the view.
   drawIndicators(ctx) {
-    if (this.state === STATE.START) return;
+    if (this.state === STATE.START || this.state === STATE.SELECT) return;
     const c = this.cam, z = c.zoom, vw = this.viewW;
     ctx.fillStyle = '#000';
     const chevron = (wx, wy, big) => {
@@ -986,16 +1028,17 @@ class Game {
 
   drawHUD(ctx) {
     const a = this.hudAlpha;
-    if (a <= 0.01 || this.state === STATE.START) return;
+    if (a <= 0.01 || this.state === STATE.START || this.state === STATE.SELECT) return;
     const p = this.player;
     ctx.globalAlpha = a;
     const x = 40, y = 46;
     this.text('WAVE ' + (this.waveIndex + 1), x, y, 18, { weight: 700, spacing: 4 });
+    this.text(p.cls.name, x + 150, y, 12, { weight: 400, spacing: 4 });
 
     // HP
     this.text('HP', x, y + 30, 12, { weight: 700, spacing: 2 });
     const blocks = 10, bw = 14, bh = 10, gap = 3, bx0 = x + 58;
-    const fill = p.hp / PLAYER_CFG.maxHp * blocks;
+    const fill = p.hp / p.maxHp * blocks;
     ctx.fillStyle = '#000';
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1;
@@ -1038,6 +1081,7 @@ class Game {
   drawOverlayText(ctx) {
     const s = this.state, t = this.stateT;
     const cx = VIEW_W / 2;
+    if (s === STATE.SELECT) { this.drawSelect(ctx); return; }
     if (s === STATE.START) {
       const a = clamp(this.time * 1.2, 0, 1);
       ctx.globalAlpha = a;
@@ -1050,7 +1094,7 @@ class Game {
         this.text('TEST BUILD   ·   N  skip wave   ·   H  heal + fill magic', cx, 30, 11, { spacing: 2, align: 'center' });
       }
       ctx.globalAlpha = a * 0.8;
-      this.text('ARROWS / WASD  move      ←← / SHIFT  run      SPACE  jump      X / click  attack      F / right-click  back attack      V  magic      P  pause',
+      this.text('ARROWS / WASD  move      ←← / SHIFT  run (rogue: dash)      SPACE  jump      X / click  attack      F / right-click  back attack      V  magic      P  pause',
         cx, VIEW_H - 10, 11, { spacing: 1, align: 'center' });
       ctx.globalAlpha = 1;
     } else if (s === STATE.WAVE_INTRO) {
@@ -1100,6 +1144,60 @@ class Game {
     }
   }
 
+  // Choose your path: three outlined figures, one lit.
+  drawSelect(ctx) {
+    const cx = VIEW_W / 2, t = this.time;
+    ctx.fillStyle = PAPER;
+    ctx.globalAlpha = 0.95;
+    ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+    ctx.globalAlpha = 1;
+    this.text('CHOOSE YOUR PATH', cx, 104, 28, { weight: 300, spacing: 14, align: 'center' });
+    const P = this.selPose || (this.selPose = { x: 0, y: 0, facing: 1, legA: 0.2, legB: -0.22, lean: 0, sx: 1, sy: 1, cloak: 0.25, time: 0 });
+    CLASS_ORDER.forEach((key, i) => {
+      const C = CLASSES[key];
+      const on = i === this.selIndex;
+      const x = cx + (i - 1) * 340, y = 430;
+      P.time = t; P.weapon = C.weapon; P.draw = 0; P.fire = false; P.sword2 = undefined;
+      P.lean = 0; P.legA = 0.2; P.legB = -0.22;
+      if (key === 'warrior') P.sword = C.rest + (on ? Math.sin(t * 2) * 0.15 : 0);
+      else if (key === 'archer') {
+        const d = on ? clamp(Math.sin(t * 2.2) * 1.3, 0, 1) : 0;
+        P.sword = on ? -0.05 : C.rest; P.draw = d; P.fire = d > 0.5 && Math.sin(t * 1.1) > 0;
+      } else {
+        P.sword = C.rest + (on ? Math.sin(t * 3) * 0.35 : 0);
+        P.sword2 = C.rest2 - (on ? Math.sin(t * 3) * 0.35 : 0);
+      }
+      // ground mark
+      ctx.fillStyle = INK;
+      ctx.beginPath();
+      ctx.ellipse(x, y, 34, 5, 0, 0, TAU);
+      ctx.fill();
+      ctx.save();
+      ctx.translate(x, y + (on ? Math.sin(t * 3) * 1.5 : 0));
+      ctx.scale(1.9, 1.9);
+      drawFigure(ctx, P, true);
+      ctx.restore();
+      this.text(C.name, x, y + 56, on ? 22 : 18, { weight: on ? 700 : 400, spacing: 8, align: 'center' });
+      if (!on) {
+        // the paths not taken fade into the white
+        ctx.fillStyle = PAPER;
+        ctx.globalAlpha = 0.68;
+        ctx.fillRect(x - 170, 150, 340, 500);
+        ctx.globalAlpha = 1;
+      }
+      if (on) {
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x - 150, 170, 300, 470);
+        C.lines.forEach((l, k) => this.text(l, x, y + 90 + k * 22, 13, { spacing: 1, align: 'center' }));
+        this.text('HP ' + C.stats.maxHp, x, y + 90 + C.lines.length * 22 + 8, 11, { weight: 700, spacing: 3, align: 'center' });
+      }
+    });
+    ctx.globalAlpha = 0.45 + 0.35 * Math.sin(t * 2.5);
+    this.text('← →  choose        X / SPACE / ENTER  begin the march', cx, VIEW_H - 22, 13, { spacing: 3, align: 'center' });
+    ctx.globalAlpha = 1;
+  }
+
   drawPause(ctx) {
     ctx.fillStyle = '#fff';
     ctx.globalAlpha = 0.88;
@@ -1109,13 +1207,14 @@ class Game {
     this.text('PAUSED', cx, 210, 34, { weight: 300, spacing: 16, align: 'center' });
     const lines = [
       'MOVE   ARROWS / WASD   (up and down walk into and out of the screen)',
-      'RUN   double-tap ← or →,  or hold SHIFT / C',
+      'RUN   double-tap ← or →,  or hold SHIFT / C      ROGUE: SHIFT / C dashes (untouchable), attack out of it: twin strike',
       'JUMP   SPACE / Z / K',
       'ATTACK   X / J / LEFT CLICK   (repeat for a three-hit combo)',
       'RUNNING ATTACK   attack while running      JUMP ATTACK   attack in the air',
       'GRAB & THROW   attack point-blank: knee, knee, then throw',
       'BACK ATTACK   F / RIGHT CLICK   or JUMP + ATTACK together - hits both sides',
       'MAGIC   V / Q   spends every pot you carry - more pots, bigger spell',
+      'ARCHER   every third shot is a fire arrow      ROGUE   every strike cuts twice',
       'MUTE   M',
     ];
     lines.forEach((l, i) => this.text(l, cx, 262 + i * 26, 12, { spacing: 2, align: 'center' }));
