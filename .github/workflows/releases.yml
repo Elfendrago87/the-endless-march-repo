@@ -1,0 +1,25 @@
+name: Releases
+
+# Publishes each version listed in tools/releases.txt as a GitHub release
+# (tag, changelog notes and builds). Safe to re-run: existing releases are skipped.
+on:
+  push:
+    paths:
+      - tools/releases.txt
+      - tools/publish-releases.sh
+      - .github/workflows/releases.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish releases
+        run: bash tools/publish-releases.sh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}

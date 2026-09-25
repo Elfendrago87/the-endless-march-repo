@@ -8,7 +8,7 @@ An outlined figure with an enormous sword walks a long white road and fights ten
 
 ## Play
 
-The current version is **0.7.0**. See [CHANGELOG.md](CHANGELOG.md) for every version.
+The current version is **0.7.0**. See [CHANGELOG.md](CHANGELOG.md) for every version. Every version is also published on the repository's **Releases** page with its builds attached (by `.github/workflows/releases.yml`, from the list in `tools/releases.txt`).
 
 ### Windows
 
