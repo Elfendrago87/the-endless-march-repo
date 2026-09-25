@@ -1,6 +1,6 @@
 # Changelog
 
-Every version of the game, newest first. Each version is tagged in git (`v0.1.0` … `v0.6.0`), and each one can be downloaded, played in a browser and watched as a recorded demo on the website (`docs/`, see the README).
+Every version of the game, newest first. Each version is tagged in git (`v0.1.0` … `v0.6.0`), and each has its downloads, a playable copy and a recorded demo on the Versions page of the website.
 
 The game started out under the working title **SEEK** and was renamed **The Endless March: Journey to the End** in 0.4.0.
 

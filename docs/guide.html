@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guide · The Endless March</title>
+<link rel="icon" href="play/0.6.0/icons/icon-192.png">
+<link rel="stylesheet" href="assets/site.css">
+<script src="assets/site.js"></script>
+</head>
+<body>
+<header class="top"><div class="in">
+  <a class="brand" href="index.html">THE ENDLESS MARCH</a>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="guide.html" aria-current="page">Guide</a>
+    <a href="art.html">Art</a>
+    <a href="story.html">Story mode</a>
+    <a href="changelog.html">Versions</a>
+  </nav>
+  <button class="theme" type="button" aria-label="Switch day / night">Auto</button>
+</div></header>
+
+<main>
+  <h1>Guide</h1>
+  <p class="sub">Everything in version 0.6.0</p>
+
+  <ul class="toc">
+    <li><a href="#flow">How a run goes</a></li>
+    <li><a href="#controls">Controls</a></li>
+    <li><a href="#lanes">The lane rule</a></li>
+    <li><a href="#classes">The three paths</a></li>
+    <li><a href="#combat">Combat</a></li>
+    <li><a href="#magic">Magic, thieves and food</a></li>
+    <li><a href="#night">Nights</a></li>
+    <li><a href="#lives">Health, lives and falling</a></li>
+    <li><a href="#enemies">Enemies</a></li>
+    <li><a href="#waves">The ten waves</a></li>
+    <li><a href="#door">The door</a></li>
+    <li><a href="#tips">Tips</a></li>
+  </ul>
+
+  <section id="flow">
+    <h2>How a run goes</h2>
+    <ol>
+      <li><b>Title → Choose your path.</b> Pick the Warrior, the Archer or the Rogue.</li>
+      <li><b>The road.</b> You start on the plain. The screen locks and <b>Wave 1</b> begins: enemies walk in from both edges of the screen or rise out of the ground.</li>
+      <li><b>Clear the wave → GO&nbsp;→.</b> Walk right. The camera follows, and locks again where the next wave waits. Between waves you get back 15 HP.</li>
+      <li><b>After waves 3 and 6, night falls.</b> Rest, fight off thieves, and wake with 25 HP back.</li>
+      <li><b>Wave 10</b> is fought in the void at the end of the road, with a wider view.</li>
+      <li><b>Then the door.</b> A monolith rises. Walk to it.</li>
+    </ol>
+    <p>You have three lives. When the last one is gone, the run is over and starts again from Wave 1, with the same class. There are no checkpoints and no permanent upgrades: you get better, not your character.</p>
+  </section>
+
+  <section id="controls">
+    <h2>Controls</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Action</th><th>Keyboard</th><th>Mouse</th><th>Gamepad</th><th>Touch</th></tr>
+      <tr><td>Move (up/down walks into and out of the screen)</td><td><kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td></td><td>left stick / d-pad</td><td>stick (left half of the screen, wherever you put your thumb)</td></tr>
+      <tr><td>Run</td><td>double-tap <kbd>←</kbd>/<kbd>→</kbd>, or hold <kbd>Shift</kbd>/<kbd>C</kbd></td><td></td><td>double-tap, or hold RB</td><td>push the stick to its rim</td></tr>
+      <tr><td>Dash (Rogue)</td><td><kbd>Shift</kbd> / <kbd>C</kbd></td><td></td><td>RB</td><td>DASH</td></tr>
+      <tr><td>Jump</td><td><kbd>Space</kbd> <kbd>Z</kbd> <kbd>K</kbd></td><td></td><td>A</td><td>JUMP</td></tr>
+      <tr><td>Attack</td><td><kbd>X</kbd> <kbd>J</kbd></td><td>left click</td><td>X</td><td>ATTACK</td></tr>
+      <tr><td>Back attack</td><td><kbd>F</kbd> <kbd>U</kbd>, or Jump + Attack together</td><td>right click</td><td>B</td><td>BACK</td></tr>
+      <tr><td>Magic</td><td><kbd>V</kbd> <kbd>Q</kbd> <kbd>L</kbd></td><td></td><td>Y</td><td>MAGIC</td></tr>
+      <tr><td>Pause (shows the controls)</td><td><kbd>P</kbd> <kbd>Esc</kbd></td><td></td><td>Start</td><td>II (Android: Back)</td></tr>
+      <tr><td>Mute</td><td><kbd>M</kbd></td><td></td><td></td><td></td></tr>
+    </table></div>
+    <figure class="shot" style="margin-top:22px">
+      <img src="img/shots/mobile.png" alt="The game on a landscape phone: a round stick on the left, and ATTACK, JUMP, DASH, BACK and MAGIC buttons on the right, drawn as outlined circles." loading="lazy">
+      <figcaption>On a phone, the controls appear the first time you touch the screen. The class screen can be tapped: tap a path to choose it, and tap it again to begin. Play in landscape.</figcaption>
+    </figure>
+  </section>
+
+  <section id="lanes">
+    <h2>The lane rule</h2>
+    <p>The road has depth: you walk up into it and down out of it as well as along it. Wherever you stand, you are in a <b>lane</b>, and so is everyone else.</p>
+    <div class="note"><b>You only hit what shares your lane.</b> Every sword slash, arrow and dagger cut keeps to the lane you are standing in. Step up or down to line up with a target, and step out of a lane to dodge what is coming down it.</div>
+    <p>There is one exception: the Warrior's <b>sword wave</b>. The third slash of the Warrior's combo releases a crescent of force that rolls forward along the whole road and strikes anything on the ground it passes, in <em>every</em> lane. (Magic also reaches the whole screen, but that is a spell, not a weapon.)</p>
+    <figure class="shot">
+      <img src="img/shots/warrior-wave.png" alt="The Warrior finishing a combo. A tall outlined crescent rolls forward across the full depth of the floor, trailing speed lines, towards two enemies in different lanes." loading="lazy">
+      <figcaption>The sword wave crossing every lane.</figcaption>
+    </figure>
+    <p>Enemies follow the same idea: they line up with your lane before they attack, and the dotted lines some of them draw on the floor show you the lane their attack will travel down.</p>
+  </section>
+
+  <section id="classes">
+    <h2>The three paths</h2>
+    <div class="grid wide">
+      <div class="card">
+        <div class="fig"><img class="art" src="img/figures/class-warrior.png" alt="The Warrior: an outlined figure with a cloak and a sword nearly twice its height." loading="lazy"></div>
+        <h3>Warrior · 100 HP</h3>
+        <p>The enormous sword. Slow, heavy, sweeping.</p>
+        <ul>
+          <li><b>Combo:</b> 15 → 18 → 28 damage. The third slash knocks down and releases the <b>sword wave</b> (12 damage, every lane, about 400 units).</li>
+          <li><b>Running attack:</b> a shoulder-first lunge that knocks down.</li>
+          <li><b>In the air:</b> a downward slash.</li>
+          <li><b>Back attack:</b> a full spin of the sword.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="fig"><img class="art" src="img/figures/class-archer.png" alt="The Archer: a hooded outlined figure with a quiver, drawing a bow with a burning arrow nocked." loading="lazy"></div>
+        <h3>Archer · 90 HP</h3>
+        <p>Arrows down the lane you stand in.</p>
+        <ul>
+          <li><b>Combo:</b> arrow (12), arrow (12), <b>fire arrow</b> (20). The fire arrow pierces everything in its lane, knocks down, and sets its targets burning: 4 damage every half second for about two seconds.</li>
+          <li><b>Running attack:</b> skid and loose one heavy piercing shot (16, knockdown).</li>
+          <li><b>In the air:</b> an arrow angled down at the floor.</li>
+          <li><b>Back attack:</b> a sweeping bow kick.</li>
+          <li>The bow tilts up at an enemy in the air, but only if it is in your lane. Arrows stick in the ground where they land and glance off raised shields.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="fig"><img class="art" src="img/figures/class-rogue.png" alt="The Rogue: a slim outlined figure with a headband trailing two tails and a dagger in each hand." loading="lazy"></div>
+        <h3>Rogue · 85 HP</h3>
+        <p>Twin daggers. Every strike cuts twice.</p>
+        <ul>
+          <li><b>Combo:</b> twin strike (8 + 8), twin strike (8 + 8), cross cut (18, knockdown).</li>
+          <li><b>Dash</b> (<kbd>Shift</kbd>/<kbd>C</kbd>): a quick dash in any of eight directions, including up and down the lanes. You can't be hit while it lasts. Short cooldown, one dash per jump.</li>
+          <li><b>Dash twin strike:</b> attack out of a dash (or while running) to lunge straight through the enemy line, cutting twice, untouchable.</li>
+          <li><b>In the air:</b> a dagger dive. <b>Back attack:</b> a spin of both blades.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="grid wide" style="margin-top:18px">
+      <figure class="shot"><img src="img/shots/archer-fire.png" alt="The Archer loosing a fire arrow; it streaks down the lane trailing sparks toward a Seeker, which flashes black as it is hit." loading="lazy"><figcaption>A fire arrow on its way down the lane.</figcaption></figure>
+      <figure class="shot"><img src="img/shots/rogue-dash.png" alt="The Rogue lunging through an enemy mid dash twin strike, a small crescent cut trailing the daggers." loading="lazy"><figcaption>The Rogue's dash twin strike.</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="combat">
+    <h2>Combat</h2>
+    <div class="grid">
+      <div class="card"><h3>Windup, strike, recovery</h3><p>Every attack, yours and theirs, has a windup, a moment where it can hit, and a recovery. Enemies shake and a ring closes in on them before they strike. Their recovery is your opening.</p></div>
+      <div class="card"><h3>Combos</h3><p>Keep pressing attack to chain three hits. The third knocks lighter enemies to the floor, where they can't be hit until they stand up.</p></div>
+      <div class="card"><h3>Running attack</h3><p>Double-tap a direction (or hold run) and attack. Each class has its own.</p></div>
+      <div class="card"><h3>Jump attack</h3><p>Attack in the air: it hits what is below you and knocks down. One per jump.</p></div>
+      <div class="card"><h3>Back attack</h3><p>Hits both sides at once. For when you are surrounded.</p></div>
+      <div class="card"><h3>Grab, knee, throw</h3><p>Attack an enemy right in front of you to grab it. Keep attacking to knee it twice, then throw it over your shoulder. A thrown body knocks down anyone it lands on in its lane. Big enemies can't be grabbed.</p></div>
+      <div class="card"><h3>Parry</h3><p>A sword swing that is active when it touches a thrown axe cuts the axe out of the air.</p></div>
+      <div class="card"><h3>Knockdowns</h3><p>Heavy hits, or three hits in quick succession, put you on the floor too. While you lie there and stand up, nothing can hurt you.</p></div>
+    </div>
+  </section>
+
+  <section id="magic">
+    <h2>Magic, thieves and food</h2>
+    <div class="grid wide">
+      <div class="card">
+        <div class="fig small"><img class="art" src="img/figures/enemy-thief.png" alt="A thief: a small hunched figure in a pointed hood carrying a round sack on its back." loading="lazy"></div>
+        <h3>Thieves</h3>
+        <p>Small, harmless, carrying a sack. They wander through some waves and come for you at night. Each hit knocks something loose: usually a <b>magic pot</b>, sometimes <b>bread</b>. After two hits they flee.</p>
+      </div>
+      <div class="card">
+        <div class="fig small"><img class="art" src="img/figures/item-pot.png" alt="A magic pot: a small round flask with a cork." loading="lazy" style="height:70px"> <img class="art" src="img/figures/item-bread.png" alt="A loaf of bread." loading="lazy" style="height:70px"></div>
+        <h3>Pots and bread</h3>
+        <p>Walk over them to pick them up. You can carry six pots. Bread gives back 30 HP. Unclaimed pickups vanish after a while.</p>
+      </div>
+      <div class="card">
+        <h3>Casting</h3>
+        <p><kbd>V</kbd> spends <b>every</b> pot you carry. The world holds still, the screen flashes into negative, and black spikes erupt from the floor under every enemy on screen: 10 damage plus 9 per pot, and everyone is knocked down. More pots, bigger spell.</p>
+      </div>
+    </div>
+    <figure class="shot" style="margin-top:18px"><img src="img/shots/magic.png" alt="Magic: outlined spikes erupting from the floor beneath every enemy on screen." loading="lazy"><figcaption>Six pots' worth.</figcaption></figure>
+  </section>
+
+  <section id="night">
+    <h2>Nights</h2>
+    <p>After waves 3 and 6 the march stops for the night. The whole world inverts: white figures in a black land. Thieves creep in for your sack. Take back what they carry. At dawn you are back to white, with 25 HP restored, and the road continues.</p>
+    <figure class="shot"><img src="img/shots/night.png" alt="Night: the scene inverted, white outlines on black, with the word REST and thieves approaching the hero." loading="lazy"><figcaption>Rest.</figcaption></figure>
+  </section>
+
+  <section id="lives">
+    <h2>Health, lives and falling</h2>
+    <ul>
+      <li>HP is shown as ten blocks. You recover 15 HP between waves, 25 after a night, and 30 from bread.</li>
+      <li>You have <b>three lives</b>. When your HP runs out you fall, and your weapon is left in the ground. If you have lives left, you stand back up where you fell with full HP, and the shock of it knocks nearby enemies off their feet.</li>
+      <li>When the last life is gone, the run ends: <i>FALLEN</i>. Press any key to begin again from Wave 1 with the same class.</li>
+    </ul>
+  </section>
+
+  <section id="enemies">
+    <h2>Enemies</h2>
+    <p>Enemies take turns. Only a few may wind up an attack at the same time (more in later waves); the rest circle you at a distance, waiting for an opening.</p>
+    <div class="grid">
+      <div class="card"><div class="fig"><img class="art" src="img/figures/enemy-seeker.png" alt="Seeker: a hunched outlined figure raising a clawed arm." loading="lazy"></div><h3>Seeker · 30 HP</h3><p>Walks up and claws. The basic pressure.</p></div>
+      <div class="card"><div class="fig"><img class="art" src="img/figures/enemy-chaser.png" alt="Chaser: a low spined creature crouched to spring." loading="lazy"></div><h3>Chaser · 20 HP</h3><p>Fast. Circles you, lines up, crouches, and lunges down its lane (dotted line). Step out of the lane.</p></div>
+      <div class="card"><div class="fig"><img class="art" src="img/figures/enemy-brute.png" alt="Brute: a huge blocky figure with its fists raised above its head." loading="lazy"></div><h3>Brute · 100 HP</h3><p>Slow, can't be staggered. Raises its fists: the dashed box on the floor is where the slam lands. It knocks you down. Punish the recovery.</p></div>
+      <div class="card"><div class="fig"><img class="art" src="img/figures/enemy-ranged.png" alt="Axe thrower: a hooded robed figure with a glowing orb in hand, a ring gathering around it." loading="lazy"></div><h3>Axe thrower · 25 HP</h3><p>Keeps its distance, lines up with your lane (dotted floor line), and throws a spinning axe. Change lanes, or cut the axe down.</p></div>
+      <div class="card"><div class="fig"><img class="art" src="img/figures/enemy-flyer.png" alt="Flyer: a small winged creature with a beak." loading="lazy"></div><h3>Flyer · 30 HP</h3><p>Hovers overhead. Marks its landing spot on the floor, then dives. Stuck on the ground for a moment after.</p></div>
+      <div class="card"><div class="fig"><img class="art" src="img/figures/enemy-splitter.png" alt="Splitter: a round body with a crack down its middle." loading="lazy"></div><h3>Splitter · 40 HP</h3><p>When it dies, it splits along its crack into two small, fast Splitlings.</p></div>
+      <div class="card"><div class="fig"><img class="art" src="img/figures/enemy-shielder.png" alt="Shielder: an armoured figure behind a tall shield." loading="lazy"></div><h3>Shielder · 60 HP</h3><p>Blocks everything from the front, arrows and sword waves included. Turns slowly. Walk around it, hit it from above, or punish its bash.</p></div>
+      <div class="card"><div class="fig"><img class="art" src="img/figures/enemy-assassin.png" alt="Assassin: a slim figure with a long scarf and a thin blade raised." loading="lazy"></div><h3>Assassin · 35 HP</h3><p>Fades almost to nothing and drifts behind you, then reappears and strikes. Its faint trail gives it away.</p></div>
+      <div class="card"><div class="fig"><img class="art" src="img/figures/enemy-elite.png" alt="Elite: a tall horned figure with a cape and its own greatsword." loading="lazy"></div><h3>Elite · 170 HP</h3><p>Takes reduced damage. An axe volley fanned across the floor, a dashing slash down its lane, a slam on both sides. Faster below half health.</p></div>
+    </div>
+  </section>
+
+  <section id="waves">
+    <h2>The ten waves</h2>
+    <div class="table-wrap"><table>
+      <tr><th>Wave</th><th>Where</th><th>Enemies</th><th>What it teaches</th></tr>
+      <tr><td>1</td><td>Plain</td><td>Seekers</td><td>Walking the lanes, the combo</td></tr>
+      <tr><td>2</td><td>Plain</td><td>Seekers, Chasers, a thief</td><td>Faster enemies, leaving a lane</td></tr>
+      <tr><td>3</td><td>Plain</td><td>Seekers, Chasers, an axe thrower</td><td>Projectiles. <i>Night follows.</i></td></tr>
+      <tr><td>4</td><td>Ruins</td><td>Chasers, axe throwers, Flyers</td><td>Threats from above</td></tr>
+      <tr><td>5</td><td>Ruins</td><td>Seekers, axe throwers, Brutes, a thief</td><td>Heavy enemies</td></tr>
+      <tr><td>6</td><td>Ruins</td><td>Chasers, Flyers, Splitters</td><td>Density. <i>Night follows.</i></td></tr>
+      <tr><td>7</td><td>Fortress</td><td>Shielders, Seekers, Brutes</td><td>Positioning</td></tr>
+      <tr><td>8</td><td>Fortress</td><td>Assassins, Chasers, axe throwers, Flyers, a thief</td><td>Pressure from every direction</td></tr>
+      <tr><td>9</td><td>Fortress</td><td>A bit of everything</td><td>The hardest ordinary wave</td></tr>
+      <tr><td>10</td><td>The void</td><td>Shielder, axe thrower, Flyer; Brute, Assassin, Chaser; an Elite alone; then an Elite with support</td><td>Everything you have learned</td></tr>
+    </table></div>
+    <div class="grid wide" style="margin-top:18px">
+      <figure class="shot"><img src="img/shots/ruins.png" alt="The ruins: broken columns and an arch on the horizon while the Rogue fights." loading="lazy"><figcaption>The ruins.</figcaption></figure>
+      <figure class="shot"><img src="img/shots/fortress.png" alt="The fortress: walls, towers with flags and rows of spears on the horizon." loading="lazy"><figcaption>The fortress.</figcaption></figure>
+      <figure class="shot"><img src="img/shots/final.png" alt="The void: an almost empty white expanse with a bare horizon line, the view pulled back for Wave 10." loading="lazy"><figcaption>The void, Wave 10.</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="door">
+    <h2>The door</h2>
+    <p>When Wave 10 falls, the fighting stops. At the far end of the road a monolith rises out of the horizon, a door at its foot. As you walk toward it, the door opens, and light pours out over everything: the stone, the road, you. Walk into it.</p>
+    <figure class="shot"><img src="img/shots/door.png" alt="The monolith with its arched door half open, white light and rays washing out the figure walking toward it." loading="lazy"><figcaption>The game doesn't say what is behind the door.</figcaption></figure>
+  </section>
+
+  <section id="tips">
+    <h2>Tips</h2>
+    <ul>
+      <li>Watch the floor. Dashed boxes, dotted lines and target marks show where an attack will land before it does.</li>
+      <li>Kill axe throwers early, or stay out of their lane.</li>
+      <li>Don't swing at a Brute's windup. Step aside, then hit it while it recovers.</li>
+      <li>Save pots for Wave 9 and the Elites. Six pots at once is far stronger than six single casts.</li>
+      <li>Warrior: the sword wave is how you reach an enemy in another lane. Finish your combos.</li>
+      <li>Archer: range is safety. Line up, shoot, and step out of the lane when something winds up.</li>
+      <li>Rogue: the dash is a dodge first. Dash through, then attack out of it.</li>
+    </ul>
+  </section>
+</main>
+
+<footer>THE ENDLESS MARCH: JOURNEY TO THE END · v0.6.0</footer>
+</body>
+</html>

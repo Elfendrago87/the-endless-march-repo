@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Versions · The Endless March</title>
+<link rel="icon" href="play/0.6.0/icons/icon-192.png">
+<link rel="stylesheet" href="assets/site.css">
+<script src="assets/site.js"></script>
+</head>
+<body>
+<header class="top"><div class="in">
+  <a class="brand" href="index.html">THE ENDLESS MARCH</a>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="guide.html">Guide</a>
+    <a href="art.html">Art</a>
+    <a href="story.html">Story mode</a>
+    <a href="changelog.html" aria-current="page">Versions</a>
+  </nav>
+  <button class="theme" type="button" aria-label="Switch day / night">Auto</button>
+</div></header>
+
+<main>
+  <h1>Versions</h1>
+  <p class="sub">Changelog, downloads and demos</p>
+  <p>Every version of the game, newest first. Each version is tagged in git (<code>v0.1.0</code> … <code>v0.6.0</code>), and each has its downloads, a playable copy and a recorded demo on the Versions page of the website.</p><p>The game started out under the working title <b>SEEK</b> and was renamed <b>The Endless March: Journey to the End</b> in 0.4.0.</p>
+  <ul class="toc"><li><a href="#v0.6.0">0.6.0 (2026-09-25): Lanes, the sword wave, and phones</a></li><li><a href="#v0.5.0">0.5.0 (2026-09-25): Three paths</a></li><li><a href="#v0.4.0">0.4.0 (2026-09-25): The Endless March</a></li><li><a href="#v0.3.0">0.3.0 (2026-09-25): A Windows app</a></li><li><a href="#v0.2.1">0.2.1 (2026-09-25): Single-file builds</a></li><li><a href="#v0.2.0">0.2.0 (2026-09-25): Onto the road</a></li><li><a href="#v0.1.0">0.1.0 (2026-09-25): SEEK</a></li></ul>
+  
+  <article class="version" id="v0.6.0">
+    <header><h2>0.6.0</h2><span class="tag">2026-09-25</span><b>Lanes, the sword wave, and phones</b> <span class="tag solid">Latest</span></header>
+    <div class="body">
+      <div class="notes"><h3>Combat</h3><ul><li><b>The lane rule.</b> You now only hit what shares your lane. Every player attack uses the same lane width (<code>LANE</code> in <code>js/data.js</code>); before this, attacks had tolerances between 14 and 26, and the back attacks reached noticeably further than the combos.</li><li><b>Sword wave (Warrior).</b> The third slash of the Warrior's combo releases a crescent of force that rolls forward about 400 units along the whole road. It is the one attack that crosses lanes: it hits anything on the ground it passes, in any lane, for 12 damage and a stagger. High flyers pass over it, and a raised shield still blocks it.</li><li><b>Archer.</b> The lane-snapping aim assist from 0.5.0 is gone: arrows keep to the lane you shoot from. The bow still tilts up at an enemy in the air, but only if it is in your lane. The running attack no longer fans three arrows across the lanes; it is now one heavy piercing shot (16 damage, knockdown).</li><li>Thrown bodies only bowl over enemies in the same lane.</li></ul><h3>Phones and tablets</h3><ul><li><b>Touch controls:</b> a floating stick on the left half of the screen (push it to the rim to run) and ATTACK, JUMP, BACK, RUN/DASH and MAGIC buttons on the right, with II to pause. The class screen can be tapped. Controls appear the first time the screen is touched.</li><li>A "turn your device sideways" notice in portrait.</li><li><b>Android app</b> (<code>dist/The-Endless-March-Android.apk</code>, Android 7.0+): a full-screen landscape WebView app with the game's files inside; plays offline, keeps the screen awake, and the Back button pauses. Built by <code>tools/build-android.sh</code> with the Android build-tools directly (no Gradle).</li><li><b>iPhone / iPad:</b> the game is now an installable web app (manifest, offline service worker, home-screen icons), so *Add to Home Screen* in Safari gives a full-screen offline app. <code>mobile/ios/</code> adds an Xcode project (XcodeGen) wrapping the game in a WKWebView, to build on a Mac.</li><li>Page is locked against pinch-zoom, scrolling and text selection on touch screens.</li></ul><h3>Other</h3><ul><li>Version number on the title and pause screens.</li><li>The pause screen explains the lane rule.</li><li>Enemy behaviour code tidied and renamed for clarity.</li><li>The app icon generator can render any size (used for the Android and home-screen icons).</li><li>The website in <code>docs/</code>: guide, art style, planned story mode, changelog, downloads and demos for every version.</li></ul></div>
+      <div class="media"><video controls preload="none" poster="media/demo-0.6.0.jpg" src="media/demo-0.6.0.webm"></video><p class="muted" style="margin:6px 0 14px">Recorded demo.</p><video controls preload="none" poster="media/demo-0.6.0-mobile.jpg" src="media/demo-0.6.0-mobile.webm"></video><p class="muted" style="margin:6px 0 14px">Recorded demo (phone, touch controls).</p><p><a class="btn" href="play/0.6.0/index.html">Play 0.6.0 in the browser</a></p><ul class="downloads"><li><a href="downloads/0.6.0/The-Endless-March-0.6.0-Android.apk">The-Endless-March-0.6.0-Android.apk</a><br><span class="muted">Android (.apk), 90 KB</span></li><li><a href="downloads/0.6.0/The-Endless-March-0.6.0-Windows.zip">The-Endless-March-0.6.0-Windows.zip</a><br><span class="muted">Windows (zip: launcher + game folder), 2.5 MB</span></li><li><a href="downloads/0.6.0/the-endless-march-0.6.0-web.zip">the-endless-march-0.6.0-web.zip</a><br><span class="muted">Web build (zip of the game files), 71 KB</span></li><li><a href="downloads/0.6.0/the-endless-march-0.6.0.html">the-endless-march-0.6.0.html</a><br><span class="muted">Single HTML file, 185 KB</span></li></ul></div>
+    </div>
+  </article>
+  <article class="version" id="v0.5.0">
+    <header><h2>0.5.0</h2><span class="tag">2026-09-25</span><b>Three paths</b></header>
+    <div class="body">
+      <div class="notes"><ul><li><b>Class select screen</b> ("Choose your path") after the title. The chosen class carries over when a run restarts; <code>?class=</code> pre-selects one.</li><li><b>Archer</b> (90 HP). Arrows fly down the lane, stick in the ground and glance off shields. The combo is arrow, arrow, <b>fire arrow</b>: it pierces, knocks down and sets enemies burning (4 damage every half second for about two seconds, drawn as outlined flames). An air shot angles down at the floor; the running attack fanned three arrows across the lanes. Hood and quiver.</li><li><b>Rogue</b> (85 HP). Twin daggers: every press is a <b>twin strike</b> (two hit windows), and the third press is a knockdown cross cut. Shift/C is the <b>evasive dash</b> from 0.1.0, back again, now in any of eight directions with brief invulnerability and one air dash. Attacking out of a dash or a run is the <b>dash twin strike</b>, which cuts through the enemy line while you can't be hit. Headband tails.</li><li>Attacks can now have several hit windows and can fire projectiles instead of using a sword hitbox. Each class sets its own HP and speed, and leaves its own weapon behind when it dies.</li><li>Balancing from bot runs: an aim assist made the Archer's arrows settle into the nearest lane in front (removed again in 0.6.0), arrows fly lower so short enemies can be hit, and Archer HP went from 80 to 90.</li></ul></div>
+      <div class="media"><video controls preload="none" poster="media/demo-0.5.0.jpg" src="media/demo-0.5.0.webm"></video><p class="muted" style="margin:6px 0 14px">Recorded demo.</p><p><a class="btn" href="play/0.5.0/index.html">Play 0.5.0 in the browser</a></p><ul class="downloads"><li><a href="downloads/0.5.0/The-Endless-March-0.5.0-Windows.zip">The-Endless-March-0.5.0-Windows.zip</a><br><span class="muted">Windows (zip: launcher + game folder), 2.4 MB</span></li><li><a href="downloads/0.5.0/the-endless-march-0.5.0-web.zip">the-endless-march-0.5.0-web.zip</a><br><span class="muted">Web build (zip of the game files), 51 KB</span></li><li><a href="downloads/0.5.0/the-endless-march-0.5.0.html">the-endless-march-0.5.0.html</a><br><span class="muted">Single HTML file, 174 KB</span></li></ul></div>
+    </div>
+  </article>
+  <article class="version" id="v0.4.0">
+    <header><h2>0.4.0</h2><span class="tag">2026-09-25</span><b>The Endless March</b></header>
+    <div class="body">
+      <div class="notes"><ul><li><b>Renamed</b> from SEEK to <b>The Endless March: Journey to the End</b>: title screen, ending, window title, executable name and details.</li><li><b>Outline art.</b> Everything with a body (figures, enemies, weapons, projectiles, pickups, horizon structures, the door monolith, magic spikes, rocks) is now a white shape with a black outline instead of a solid black silhouette. Thick limbs are outlined tubes, thin ones plain sticks, and a hit flashes the body solid black. Shadows and hit sparks stay solid.</li><li><b>Windows bundle.</b> The release is now a folder: the launcher <code>.exe</code>, a <code>game/</code> folder with the game's files, and a <code>README.txt</code>, zipped as <code>The-Endless-March-Windows.zip</code>. The launcher serves the <code>game/</code> folder and falls back to a built-in copy if the folder is missing.</li><li>New outlined-sword app icon.</li></ul></div>
+      <div class="media"><video controls preload="none" poster="media/demo-0.4.0.jpg" src="media/demo-0.4.0.webm"></video><p class="muted" style="margin:6px 0 14px">Recorded demo.</p><p><a class="btn" href="play/0.4.0/index.html">Play 0.4.0 in the browser</a></p><ul class="downloads"><li><a href="downloads/0.4.0/The-Endless-March-0.4.0-Windows.zip">The-Endless-March-0.4.0-Windows.zip</a><br><span class="muted">Windows (zip: launcher + game folder), 2.4 MB</span></li><li><a href="downloads/0.4.0/the-endless-march-0.4.0-web.zip">the-endless-march-0.4.0-web.zip</a><br><span class="muted">Web build (zip of the game files), 44 KB</span></li><li><a href="downloads/0.4.0/the-endless-march-0.4.0.html">the-endless-march-0.4.0.html</a><br><span class="muted">Single HTML file, 146 KB</span></li></ul></div>
+    </div>
+  </article>
+  <article class="version" id="v0.3.0">
+    <header><h2>0.3.0</h2><span class="tag">2026-09-25</span><b>A Windows app</b></header>
+    <div class="body">
+      <div class="notes"><ul><li><b><code>SEEK.exe</code></b>: a small native Windows program (written in Go, cross-compiled) with the whole game built in. It serves the game on 127.0.0.1 and opens it in its own Edge or Chrome app window with a private profile, falling back to the default browser, and closes itself when the game window closes. F11 toggles fullscreen.</li><li>Icon, version details and high-DPI support built into the executable.</li></ul></div>
+      <div class="media"><video controls preload="none" poster="media/demo-0.3.0.jpg" src="media/demo-0.3.0.webm"></video><p class="muted" style="margin:6px 0 14px">Recorded demo.</p><p><a class="btn" href="play/0.3.0/index.html">Play 0.3.0 in the browser</a></p><ul class="downloads"><li><a href="downloads/0.3.0/SEEK-0.3.0.exe">SEEK-0.3.0.exe</a><br><span class="muted">Windows (single .exe), 5.7 MB</span></li><li><a href="downloads/0.3.0/seek-0.3.0-web.zip">seek-0.3.0-web.zip</a><br><span class="muted">Web build (zip of the game files), 43 KB</span></li><li><a href="downloads/0.3.0/seek-0.3.0.html">seek-0.3.0.html</a><br><span class="muted">Single HTML file, 144 KB</span></li></ul></div>
+    </div>
+  </article>
+  <article class="version" id="v0.2.1">
+    <header><h2>0.2.1</h2><span class="tag">2026-09-25</span><b>Single-file builds</b></header>
+    <div class="body">
+      <div class="notes"><ul><li>The whole game can be built into one self-contained HTML file (<code>tools/build.js</code>), plus a test build with debug keys switched on (N skips a wave, H heals and fills magic).</li></ul></div>
+      <div class="media"><video controls preload="none" poster="media/demo-0.2.1.jpg" src="media/demo-0.2.1.webm"></video><p class="muted" style="margin:6px 0 14px">Recorded demo.</p><p><a class="btn" href="play/0.2.1/index.html">Play 0.2.1 in the browser</a></p><ul class="downloads"><li><a href="downloads/0.2.1/seek-0.2.1-web.zip">seek-0.2.1-web.zip</a><br><span class="muted">Web build (zip of the game files), 43 KB</span></li><li><a href="downloads/0.2.1/seek-0.2.1.html">seek-0.2.1.html</a><br><span class="muted">Single HTML file, 144 KB</span></li></ul></div>
+    </div>
+  </article>
+  <article class="version" id="v0.2.0">
+    <header><h2>0.2.0</h2><span class="tag">2026-09-25</span><b>Onto the road</b></header>
+    <div class="body">
+      <div class="notes"><p>A rework from a side-view platformer into a belt-scroller in the spirit of Golden Axe, without the mounts.</p><ul><li><b>Depth:</b> you walk into and out of the screen as well as left and right; attacks only land on targets near your depth. Shadows, back-to-front drawing.</li><li><b>One long road</b> instead of separate arenas. The camera locks at each wave; when it is cleared, <b>GO →</b> sends you on. Four stretches of scenery: plain, ruins, fortress, and the void for Wave 10.</li><li><b>New moves:</b> run (double-tap or hold Shift), running attack, knockdown jump attack, back attack that hits both sides, grab → knee → throw (thrown bodies knock others down).</li><li><b>Magic pots</b> dropped by thieves; casting spends every pot for an eruption of spikes across the screen.</li><li><b>Knockdowns</b> for you and enemies; <b>3 lives</b>, and standing back up after a fall knocks nearby enemies away.</li><li><b>Night rests</b> after waves 3 and 6: the world inverts and thieves come for your pots.</li><li>Enemies take turns attacking (attack tokens) and circle while they wait; they walk in from both screen edges or rise from the ground.</li><li>Removed: platforms and the evasive dash (it returns for the Rogue in 0.5.0).</li></ul></div>
+      <div class="media"><video controls preload="none" poster="media/demo-0.2.0.jpg" src="media/demo-0.2.0.webm"></video><p class="muted" style="margin:6px 0 14px">Recorded demo.</p><p><a class="btn" href="play/0.2.0/index.html">Play 0.2.0 in the browser</a></p><ul class="downloads"><li><a href="downloads/0.2.0/seek-0.2.0-web.zip">seek-0.2.0-web.zip</a><br><span class="muted">Web build (zip of the game files), 43 KB</span></li></ul></div>
+    </div>
+  </article>
+  <article class="version" id="v0.1.0">
+    <header><h2>0.1.0</h2><span class="tag">2026-09-25</span><b>SEEK</b></header>
+    <div class="body">
+      <div class="notes"><p>The first playable version: a minimalist black-and-white side-view wave-combat platformer.</p><ul><li>A black figure with an oversized sword: run, jump, an evasive dash with invulnerability, a three-hit combo (15 / 18 / 28), an air attack, hit-stop, knockback and screen shake.</li><li>Nine enemy types with readable windups: Seeker, Chaser, Brute, Ranged, Flyer, Splitter, Shielder, Assassin, Elite.</li><li>Ten waves across four arenas, defined as data.</li><li>After Wave 10 a door rises and fills the screen with white light. The ending leaves its meaning to the player.</li><li>Death restarts the run from Wave 1.</li></ul></div>
+      <div class="media"><video controls preload="none" poster="media/demo-0.1.0.jpg" src="media/demo-0.1.0.webm"></video><p class="muted" style="margin:6px 0 14px">Recorded demo.</p><p><a class="btn" href="play/0.1.0/index.html">Play 0.1.0 in the browser</a></p><ul class="downloads"><li><a href="downloads/0.1.0/seek-0.1.0-web.zip">seek-0.1.0-web.zip</a><br><span class="muted">Web build (zip of the game files), 33 KB</span></li></ul></div>
+    </div>
+  </article>
+</main>
+
+<footer>THE ENDLESS MARCH: JOURNEY TO THE END · v0.6.0</footer>
+</body>
+</html>

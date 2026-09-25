@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Art · The Endless March</title>
+<link rel="icon" href="play/0.6.0/icons/icon-192.png">
+<link rel="stylesheet" href="assets/site.css">
+<script src="assets/site.js"></script>
+</head>
+<body>
+<header class="top"><div class="in">
+  <a class="brand" href="index.html">THE ENDLESS MARCH</a>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="guide.html">Guide</a>
+    <a href="art.html" aria-current="page">Art</a>
+    <a href="story.html">Story mode</a>
+    <a href="changelog.html">Versions</a>
+  </nav>
+  <button class="theme" type="button" aria-label="Switch day / night">Auto</button>
+</div></header>
+
+<main>
+  <h1>Art</h1>
+  <p class="sub">Ink and paper</p>
+
+  <ul class="toc">
+    <li><a href="#rules">The rules</a></li>
+    <li><a href="#kit">How a figure is drawn</a></li>
+    <li><a href="#eras">From silhouettes to outlines</a></li>
+    <li><a href="#figures">Figures</a></li>
+    <li><a href="#road">The road</a></li>
+    <li><a href="#light">Night, magic and the light</a></li>
+    <li><a href="#type">Type and interface</a></li>
+    <li><a href="#realmwalker">Realmwalker concept art</a></li>
+    <li><a href="#planned">Planned art</a></li>
+  </ul>
+
+  <section id="rules">
+    <h2>The rules</h2>
+    <div class="grid">
+      <div class="card"><h3>Two colours</h3><p>Black <code>#000</code> and white <code>#fff</code>. Grey only ever appears as something fading: a dimmed path on the class screen, a ghost of a dash, light washing over the world.</p></div>
+      <div class="card"><h3>Everything is outlined</h3><p>Anything with a body (people, creatures, weapons, pickups, buildings, rocks) is a white shape with a black outline, 2.5 units thick.</p></div>
+      <div class="card"><h3>Solid black is for the floor</h3><p>Shadows, dust, sparks and the ink that enemies rise out of stay solid black. They belong to the ground and to the moment, not to bodies.</p></div>
+      <div class="card"><h3>Hits flip the ink</h3><p>For the frame something is hit, its body fills solid black. It reads instantly without adding a colour.</p></div>
+      <div class="card"><h3>Readability first</h3><p>Every dangerous attack has a shape you can learn: a shaking body, a ring closing in, a dashed box or a dotted line on the floor.</p></div>
+      <div class="card"><h3>Nothing is textured</h3><p>No gradients on bodies, no hatching, no pixel art. The figures are built from a few lines, circles and polygons, drawn live in code every frame.</p></div>
+    </div>
+  </section>
+
+  <section id="kit">
+    <h2>How a figure is drawn</h2>
+    <p>The whole look comes from four drawing helpers in <code>js/util.js</code>, used by every figure, weapon and building:</p>
+    <div class="table-wrap"><table>
+      <tr><th>Helper</th><th>What it draws</th></tr>
+      <tr><td><code>finish()</code></td><td>Fills the current shape white and strokes it with the black outline (or fills it black while flashing).</td></tr>
+      <tr><td><code>limb()</code></td><td>A limb. Thin ones (arms, bowstrings, spear shafts) are plain stick lines. Thick ones (legs, torsos) are outlined tubes: a wide black line with a narrower white line inside it.</td></tr>
+      <tr><td><code>box()</code></td><td>An outlined rectangle: shields, walls, the monolith.</td></tr>
+      <tr><td><code>eye()</code></td><td>A small black mark: eyes, a slit window, the studs on the door.</td></tr>
+    </table></div>
+    <p>Figures overlap in the order they are drawn, back to front, so a torso's white fill neatly covers the top of the legs behind it. That is the whole trick.</p>
+  </section>
+
+  <section id="eras">
+    <h2>From silhouettes to outlines</h2>
+    <p>Until 0.3.0 every body was a solid black silhouette on white. It read clearly on its own, but figures merged when they crossed, and black shapes on the black ground band vanished. 0.4.0 turned them all into outlines.</p>
+    <div class="grid wide">
+      <figure class="shot"><img src="img/era-silhouette.jpg" alt="Version 0.3.0: solid black silhouettes of towers, the hero and enemies on a white road with a black ground band." loading="lazy"><figcaption>0.3.0: silhouettes.</figcaption></figure>
+      <figure class="shot"><img src="img/era-outline.jpg" alt="Version 0.4.0: the same kind of scene with everything drawn as white shapes with black outlines." loading="lazy"><figcaption>0.4.0: outlines.</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="figures">
+    <h2>Figures</h2>
+    <p>Rendered straight from the game's drawing code.</p>
+    <div class="grid">
+      <div class="card fig"><img class="art" src="img/figures/class-warrior.png" alt="Warrior" loading="lazy"><h3>Warrior</h3><p>Cloak tail, sword nearly twice its height, a fuller down the blade.</p></div>
+      <div class="card fig"><img class="art" src="img/figures/class-archer.png" alt="Archer" loading="lazy"><h3>Archer</h3><p>Hood, quiver across the back, a recurve bow whose string pulls back as it draws.</p></div>
+      <div class="card fig"><img class="art" src="img/figures/class-rogue.png" alt="Rogue" loading="lazy"><h3>Rogue</h3><p>Slimmer torso, a headband with two tails, a dagger in each hand.</p></div>
+      <div class="card fig"><img class="art" src="img/figures/enemy-seeker.png" alt="Seeker" loading="lazy"><h3>Seeker</h3></div>
+      <div class="card fig"><img class="art" src="img/figures/enemy-chaser.png" alt="Chaser" loading="lazy"><h3>Chaser</h3></div>
+      <div class="card fig"><img class="art" src="img/figures/enemy-brute.png" alt="Brute" loading="lazy"><h3>Brute</h3></div>
+      <div class="card fig"><img class="art" src="img/figures/enemy-ranged.png" alt="Axe thrower" loading="lazy"><h3>Axe thrower</h3></div>
+      <div class="card fig"><img class="art" src="img/figures/enemy-flyer.png" alt="Flyer" loading="lazy"><h3>Flyer</h3></div>
+      <div class="card fig"><img class="art" src="img/figures/enemy-splitter.png" alt="Splitter" loading="lazy"><h3>Splitter</h3></div>
+      <div class="card fig"><img class="art" src="img/figures/enemy-shielder.png" alt="Shielder" loading="lazy"><h3>Shielder</h3></div>
+      <div class="card fig"><img class="art" src="img/figures/enemy-assassin.png" alt="Assassin" loading="lazy"><h3>Assassin</h3></div>
+      <div class="card fig"><img class="art" src="img/figures/enemy-elite.png" alt="Elite" loading="lazy"><h3>Elite</h3></div>
+      <div class="card fig"><img class="art" src="img/figures/enemy-thief.png" alt="Thief" loading="lazy"><h3>Thief</h3></div>
+      <div class="card fig"><img class="art" src="img/figures/arrow-fire.png" alt="Fire arrow" loading="lazy" style="height:60px"><h3>Fire arrow</h3><p>Flames are outlined too: three tongues that flicker at different rates.</p></div>
+      <div class="card fig"><img class="art" src="img/figures/item-pot.png" alt="Magic pot" loading="lazy" style="height:80px"> <img class="art" src="img/figures/item-bread.png" alt="Bread" loading="lazy" style="height:80px"><h3>Pot &amp; bread</h3></div>
+    </div>
+  </section>
+
+  <section id="road">
+    <h2>The road</h2>
+    <p>The horizon is a single line. Above it, distant outlined structures drift past at half speed; below it, the floor is white with a few short marks that get heavier toward you; at the bottom, a ledge line with rocks and grass moves a little faster than you do. Each stretch of the road has its own horizon:</p>
+    <div class="table-wrap"><table>
+      <tr><th>Stretch</th><th>Waves</th><th>On the horizon</th></tr>
+      <tr><td>The plain</td><td>1–3</td><td>Low hills, bare trees</td></tr>
+      <tr><td>The ruins</td><td>4–6</td><td>Broken columns, arches, fallen blocks</td></tr>
+      <tr><td>The fortress</td><td>7–9</td><td>Crenellated walls, towers with flags and slit windows, rows of spears</td></tr>
+      <tr><td>The void</td><td>10</td><td>Almost nothing: a thin spire now and then. The view pulls back to make it feel larger.</td></tr>
+    </table></div>
+    <div class="grid wide" style="margin-top:18px">
+      <figure class="shot"><img src="img/shots/ruins.png" alt="The ruins stretch." loading="lazy"><figcaption>The ruins.</figcaption></figure>
+      <figure class="shot"><img src="img/shots/fortress.png" alt="The fortress stretch." loading="lazy"><figcaption>The fortress.</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="light">
+    <h2>Night, magic and the light</h2>
+    <div class="grid wide">
+      <figure class="shot"><img src="img/shots/night.png" alt="Night: everything inverted, white outlines on black." loading="lazy"><figcaption><b>Night</b> doesn't add darkness: it swaps the two colours, fading through grey as it falls.</figcaption></figure>
+      <figure class="shot"><img src="img/shots/magic.png" alt="Magic spikes erupting from the floor." loading="lazy"><figcaption><b>Magic</b> flashes the screen into negative for a few frames as the spikes land.</figcaption></figure>
+      <figure class="shot"><img src="img/shots/door.png" alt="The door opening, light washing out the scene." loading="lazy"><figcaption><b>The light</b> behind the door is the only thing brighter than the paper: it washes the outlines themselves away.</figcaption></figure>
+      <figure class="shot"><img src="img/shots/ending.png" alt="The ending: a white screen with the title and a single question." loading="lazy"><figcaption>And then nothing but white.</figcaption></figure>
+    </div>
+  </section>
+
+  <section id="type">
+    <h2>Type and interface</h2>
+    <p>One typeface (Helvetica Neue, falling back to Helvetica and Arial), mostly in light weights with wide letter-spacing. Titles are set in capitals. The HUD is small and sits in the top-left corner: wave and class, HP as ten blocks, magic as six flasks, lives as little figures, and the enemies left. Touch controls are outlined circles that fill black while pressed.</p>
+    <figure class="shot"><img src="img/shots/select.png" alt="The class select screen: CHOOSE YOUR PATH, with the Archer lit inside an outlined frame and the other two paths faded." loading="lazy"><figcaption>Choose your path.</figcaption></figure>
+  </section>
+
+  <section id="realmwalker">
+    <h2>Realmwalker concept art</h2>
+    <p>Concept art from the Realmwalker project sources, the planned art direction for future content. <span class="muted">Images are added in <code>docs/art/realmwalker/</code> (see the README there).</span></p>
+    <div class="grid" id="rw-gallery">
+      <div class="slot">Realmwalker concept art<br>not added yet</div>
+      <div class="slot">Realmwalker concept art<br>not added yet</div>
+      <div class="slot">Realmwalker concept art<br>not added yet</div>
+    </div>
+  </section>
+
+  <section id="planned">
+    <h2>Planned art</h2>
+    <div class="note planned"><span class="tag">Planned</span> None of this is in the game yet.</div>
+    <ul>
+      <li><b>Story panels:</b> full-screen ink panels between chapters of the planned <a href="story.html">story mode</a>, drawn with the same outline kit at a larger scale.</li>
+      <li><b>More horizons:</b> each story chapter gets its own stretch of road and skyline.</li>
+      <li><b>Outlined animation frames</b> for the hero's idle and victory poses, and a proper death fall for each enemy type.</li>
+      <li><b>Accessibility:</b> an optional thicker outline and larger HUD for small screens.</li>
+    </ul>
+  </section>
+</main>
+
+<footer>THE ENDLESS MARCH: JOURNEY TO THE END · v0.6.0</footer>
+<script>
+  // Fill the Realmwalker section from art/realmwalker/gallery.json, if it lists anything.
+  fetch('art/realmwalker/gallery.json', { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : []; })
+    .then(function (items) {
+      if (!Array.isArray(items) || !items.length) return;
+      var g = document.getElementById('rw-gallery');
+      g.innerHTML = '';
+      items.forEach(function (it) {
+        var f = document.createElement('figure');
+        f.className = 'shot';
+        var img = document.createElement('img');
+        img.src = 'art/realmwalker/' + it.file;
+        img.alt = it.title || it.file;
+        img.loading = 'lazy';
+        img.className = 'raw';
+        f.appendChild(img);
+        if (it.title || it.note) {
+          var c = document.createElement('figcaption');
+          if (it.title) { var b = document.createElement('b'); b.textContent = it.title; c.appendChild(b); }
+          if (it.note) c.appendChild(document.createTextNode((it.title ? ' ' : '') + it.note));
+          f.appendChild(c);
+        }
+        g.appendChild(f);
+      });
+    })
+    .catch(function () {});
+</script>
+</body>
+</html>
