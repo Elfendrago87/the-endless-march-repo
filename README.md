@@ -17,6 +17,18 @@ node tools/build.js          # dist/seek.html
 node tools/build.js --test   # dist/seek-test.html
 ```
 
+### Windows app
+
+`dist/SEEK.exe` is a 64-bit Windows program with the whole game embedded in it. Double-click it to play; there's nothing to install. It opens the game in its own window using Microsoft Edge (built into Windows 10 and 11) in app mode, or Chrome if Edge is missing, or your default browser as a last resort. The program closes itself when you close the game window. Press F11 to toggle fullscreen.
+
+The executable isn't code-signed, so Windows SmartScreen may warn about it the first time. Choose **More info → Run anyway**.
+
+The launcher's source is in `desktop/`. It's a small Go program that serves the embedded game on 127.0.0.1. To rebuild it (Go 1.24+ and Node; it builds from Linux, macOS or Windows):
+
+```sh
+./tools/build-exe.sh         # dist/SEEK.exe
+```
+
 If your browser blocks local files, serve the folder instead:
 
 ```sh
