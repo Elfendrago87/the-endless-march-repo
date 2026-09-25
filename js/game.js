@@ -508,8 +508,8 @@ class Game {
       ctx.stroke();
       return;
     }
-    // eruption: black spikes burst out of the floor
-    ctx.fillStyle = '#000';
+    // eruption: outlined spikes burst out of the floor
+    ctx.lineJoin = 'miter';
     const scale = 40 + m.level * 16;
     for (const s of m.spikes) {
       const lt = t - s.d;
@@ -525,7 +525,7 @@ class Game {
       ctx.lineTo(x + 6, y - h * 0.75);
       ctx.lineTo(x + 10, y);
       ctx.closePath();
-      ctx.fill();
+      finish(ctx);
     }
   }
 
@@ -892,32 +892,46 @@ class Game {
     ctx.rect(sx - 60, -1200, d.slabW + 120, gy + 1200);
     ctx.clip();
     ctx.translate(0, d.slabH * (1 - rise));
-    ctx.fillStyle = '#000';
-    ctx.fillRect(sx, top, d.slabW, d.slabH);
-    ctx.fillRect(sx + 40, top - 30, d.slabW - 80, 32);
-    ctx.fillRect(sx + 100, top - 52, d.slabW - 200, 24);
+    ctx.lineJoin = 'miter';
+    box(ctx, sx + 110, top - 52, d.slabW - 220, 24);
+    box(ctx, sx + 40, top - 30, d.slabW - 80, 32);
+    box(ctx, sx, top, d.slabW, d.slabH);
+    // stone courses
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let y = top + 36; y < gy - 10; y += 36) { ctx.moveTo(sx + 12, y); ctx.lineTo(sx + d.slabW - 12, y); }
+    ctx.stroke();
     const o = this.doorOpen;
     const dw = d.doorW, dh = d.doorH;
     const gap = dw * easeInOutSine(o);
-    if (o > 0) {
-      ctx.save();
-      this.archPath(ctx, d.x, gy, dw, dh);
-      ctx.clip();
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(d.x - gap / 2, gy - dh - 2, gap, dh + 4);
-      ctx.restore();
-    }
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    this.archPath(ctx, d.x, gy, dw, dh);
-    ctx.stroke();
+    // the door: two outlined leaves parting on a white gap
+    ctx.save();
     this.archPath(ctx, d.x, gy, dw + 22, dh + 14);
+    ctx.fillStyle = PAPER;
+    ctx.fill();
+    ctx.lineWidth = OUTLINE;
     ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(d.x - gap / 2, gy - dh + (gap < 4 ? 0 : 6));
-    ctx.lineTo(d.x - gap / 2, gy);
-    ctx.moveTo(d.x + gap / 2, gy - dh + (gap < 4 ? 0 : 6));
-    ctx.lineTo(d.x + gap / 2, gy);
+    this.archPath(ctx, d.x, gy, dw, dh);
+    ctx.clip();
+    ctx.fillStyle = PAPER;
+    ctx.fillRect(d.x - dw / 2 - 2, gy - dh - 2, dw + 4, dh + 4);
+    const leaf = (dw - gap) / 2;
+    if (leaf > 0.5) {
+      box(ctx, d.x - dw / 2, gy - dh - 2, leaf, dh + 4);
+      box(ctx, d.x + gap / 2, gy - dh - 2, leaf, dh + 4);
+      // studs on the leaves
+      ctx.fillStyle = INK;
+      for (let yy = gy - dh * 0.75; yy < gy - 10; yy += dh / 4) {
+        if (leaf > 12) {
+          ctx.fillRect(d.x - gap / 2 - 9, yy, 3, 3);
+          ctx.fillRect(d.x + gap / 2 + 6, yy, 3, 3);
+        }
+      }
+    }
+    ctx.restore();
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = OUTLINE;
+    this.archPath(ctx, d.x, gy, dw, dh);
     ctx.stroke();
     ctx.restore();
   }
@@ -1027,16 +1041,17 @@ class Game {
     if (s === STATE.START) {
       const a = clamp(this.time * 1.2, 0, 1);
       ctx.globalAlpha = a;
-      this.text('SEEK', cx, 172, 132, { weight: 300, spacing: 44, align: 'center' });
+      this.text('THE ENDLESS MARCH', cx, 140, 60, { weight: 300, spacing: 16, align: 'center' });
+      this.text('JOURNEY TO THE END', cx, 182, 18, { weight: 400, spacing: 12, align: 'center' });
       ctx.globalAlpha = a * (0.45 + 0.35 * Math.sin(this.time * 2.5));
-      this.text('press any key', cx, 218, 15, { spacing: 4, align: 'center' });
+      this.text('press any key', cx, 226, 15, { spacing: 4, align: 'center' });
       if (window.SEEK_TEST_BUILD) {
         ctx.globalAlpha = a * 0.6;
         this.text('TEST BUILD   ·   N  skip wave   ·   H  heal + fill magic', cx, 30, 11, { spacing: 2, align: 'center' });
       }
       ctx.globalAlpha = a * 0.8;
       this.text('ARROWS / WASD  move      ←← / SHIFT  run      SPACE  jump      X / click  attack      F / right-click  back attack      V  magic      P  pause',
-        cx, VIEW_H - 10, 11, { spacing: 1, align: 'center', color: '#fff' });
+        cx, VIEW_H - 10, 11, { spacing: 1, align: 'center' });
       ctx.globalAlpha = 1;
     } else if (s === STATE.WAVE_INTRO) {
       const a = t < 0.25 ? t / 0.25 : t > 1.1 ? Math.max(0, 1 - (t - 1.1) / 0.3) : 1;
@@ -1071,7 +1086,7 @@ class Game {
     } else if (s === STATE.ENDING) {
       if (t > 1.5) {
         ctx.globalAlpha = clamp((t - 1.5) / 2.0, 0, 1);
-        this.text('SEEK', cx, 340, 96, { weight: 300, spacing: 36, align: 'center' });
+        this.text('THE ENDLESS MARCH', cx, 330, 54, { weight: 300, spacing: 14, align: 'center' });
       }
       if (t > 4.2) {
         ctx.globalAlpha = clamp((t - 4.2) / 2.0, 0, 1) * 0.8;

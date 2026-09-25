@@ -76,9 +76,11 @@ class Stage {
     }
   }
 
+  // Distant structures: outlined shapes standing on the horizon.
   drawBack(ctx, camX, viewW, time) {
-    ctx.fillStyle = '#000';
-    ctx.strokeStyle = '#000';
+    ctx.strokeStyle = INK;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     const off = camX * (1 - BG_PARALLAX);
     const lo = camX * BG_PARALLAX - 400, hi = camX * BG_PARALLAX + viewW + 400;
     for (const s of this.back) {
@@ -88,18 +90,13 @@ class Stage {
         case 'hill':
           ctx.beginPath();
           ctx.ellipse(x, b, s.w / 2, s.h, 0, Math.PI, 0);
-          ctx.fill();
+          finish(ctx);
           break;
-        case 'tree': {
-          ctx.lineCap = 'round';
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.moveTo(x, b); ctx.lineTo(x + 2, b - s.h);
-          ctx.moveTo(x + 1, b - s.h * 0.55); ctx.lineTo(x - 12 - s.s * 8, b - s.h * 0.8);
-          ctx.moveTo(x + 2, b - s.h * 0.75); ctx.lineTo(x + 14 + s.s * 6, b - s.h - 6);
-          ctx.stroke();
+        case 'tree':
+          limb(ctx, x, b, x + 2, b - s.h, 5);
+          limb(ctx, x + 1, b - s.h * 0.55, x - 12 - s.s * 8, b - s.h * 0.8, 3);
+          limb(ctx, x + 2, b - s.h * 0.75, x + 14 + s.s * 6, b - s.h - 6, 3);
           break;
-        }
         case 'column': {
           const top = b - s.h;
           ctx.beginPath();
@@ -107,64 +104,86 @@ class Stage {
           ctx.lineTo(x + s.w * 0.4, top - 4 * s.s); ctx.lineTo(x + s.w * 0.7, top + 8);
           ctx.lineTo(x + s.w, top + 2); ctx.lineTo(x + s.w, b);
           ctx.closePath();
-          ctx.fill();
-          ctx.fillRect(x - 4, b - 6, s.w + 8, 6);
+          finish(ctx);
+          box(ctx, x - 4, b - 6, s.w + 8, 6);
           break;
         }
         case 'arch':
-          ctx.fillRect(x, b - s.h, 14, s.h);
-          ctx.fillRect(x + s.w - 14, b - s.h, 14, s.h);
           ctx.beginPath();
+          ctx.moveTo(x, b);
+          ctx.lineTo(x, b - s.h);
           ctx.arc(x + s.w / 2, b - s.h, s.w / 2, Math.PI, 0);
+          ctx.lineTo(x + s.w, b);
+          ctx.lineTo(x + s.w - 14, b);
           ctx.lineTo(x + s.w - 14, b - s.h);
           ctx.arc(x + s.w / 2, b - s.h, s.w / 2 - 14, 0, Math.PI, true);
+          ctx.lineTo(x + 14, b);
           ctx.closePath();
-          ctx.fill();
+          finish(ctx);
           break;
         case 'block':
-          ctx.fillRect(x, b - s.h, s.w, s.h);
+          box(ctx, x, b - s.h, s.w, s.h);
           break;
-        case 'wall':
-          ctx.fillRect(x, b - s.h, s.w, s.h);
-          for (let cx = x; cx < x + s.w - 8; cx += 16) ctx.fillRect(cx, b - s.h - 8, 9, 8);
-          break;
-        case 'tower':
-          ctx.fillRect(x, b - s.h, s.w, s.h);
+        case 'wall': {
+          // one outline, crenellations included
+          const top = b - s.h;
           ctx.beginPath();
-          ctx.moveTo(x - 6, b - s.h); ctx.lineTo(x + s.w / 2, b - s.h - 30); ctx.lineTo(x + s.w + 6, b - s.h);
-          ctx.fill();
+          ctx.moveTo(x, b);
+          ctx.lineTo(x, top - 8);
+          let cx = x;
+          while (cx + 16 < x + s.w) {
+            ctx.lineTo(cx + 9, top - 8); ctx.lineTo(cx + 9, top);
+            ctx.lineTo(cx + 16, top); ctx.lineTo(cx + 16, top - 8);
+            cx += 16;
+          }
+          ctx.lineTo(x + s.w, top - 8);
+          ctx.lineTo(x + s.w, b);
+          ctx.closePath();
+          finish(ctx);
+          break;
+        }
+        case 'tower': {
+          const top = b - s.h, mid = x + s.w / 2;
+          box(ctx, x, top, s.w, s.h);
+          ctx.beginPath();
+          ctx.moveTo(x - 6, top); ctx.lineTo(mid, top - 30); ctx.lineTo(x + s.w + 6, top);
+          ctx.closePath();
+          finish(ctx);
+          limb(ctx, mid, top - 30, mid, top - 50, 2);
+          ctx.beginPath();
+          ctx.moveTo(mid, top - 50);
+          ctx.lineTo(mid + 12 + Math.sin(time * 3 + s.x) * 2, top - 46);
+          ctx.lineTo(mid, top - 42);
+          ctx.closePath();
+          finish(ctx);
+          // a slit window
           ctx.lineWidth = 1.5;
           ctx.beginPath();
-          ctx.moveTo(x + s.w / 2, b - s.h - 30); ctx.lineTo(x + s.w / 2, b - s.h - 50);
+          ctx.moveTo(mid, top + 12); ctx.lineTo(mid, top + 24);
           ctx.stroke();
-          ctx.beginPath();
-          ctx.moveTo(x + s.w / 2, b - s.h - 50);
-          ctx.lineTo(x + s.w / 2 + 12 + Math.sin(time * 3 + s.x) * 2, b - s.h - 46);
-          ctx.lineTo(x + s.w / 2, b - s.h - 42);
-          ctx.fill();
           break;
+        }
         case 'spears':
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
           for (let k = 0; k < s.w; k += 9) {
             const lean = Math.sin(k * 1.7 + s.x) * 3;
-            ctx.moveTo(x + k, b); ctx.lineTo(x + k + lean, b - s.h);
+            limb(ctx, x + k, b, x + k + lean, b - s.h, 2);
           }
-          ctx.stroke();
           break;
         case 'spire':
           ctx.beginPath();
           ctx.moveTo(x - 3, b); ctx.lineTo(x, b - s.h); ctx.lineTo(x + 3, b);
-          ctx.fill();
+          ctx.closePath();
+          finish(ctx);
           break;
       }
     }
     // horizon
+    ctx.fillStyle = INK;
     ctx.fillRect(camX - 50, FLOOR_Y - 1, viewW + 100, 2);
   }
 
   drawFloor(ctx, camX, viewW) {
-    ctx.fillStyle = '#000';
+    ctx.fillStyle = INK;
     for (const m of this.marks) {
       if (m.x < camX - 40 || m.x > camX + viewW + 40) continue;
       const k = m.z / DEPTH; // marks get a little heavier toward the front
@@ -172,10 +191,15 @@ class Stage {
     }
   }
 
+  // The near edge of the road: a ledge line with outlined rocks and grass.
   drawFront(ctx, camX, viewW, bottomY) {
     const top = FLOOR_Y + DEPTH + 26;
-    ctx.fillStyle = '#000';
+    ctx.fillStyle = PAPER;
     ctx.fillRect(camX - 50, top, viewW + 100, bottomY - top + 50);
+    ctx.fillStyle = INK;
+    ctx.fillRect(camX - 50, top - 1, viewW + 100, 2.5);
+    ctx.strokeStyle = INK;
+    ctx.lineJoin = 'round';
     const off = camX * (1 - FG_PARALLAX);
     const lo = camX * FG_PARALLAX - 200, hi = camX * FG_PARALLAX + viewW + 200;
     for (const f of this.front) {
@@ -193,7 +217,7 @@ class Stage {
       } else {
         ctx.ellipse(x + f.w / 2, top, f.w / 2, f.h, 0, Math.PI, 0);
       }
-      ctx.fill();
+      finish(ctx);
     }
   }
 }
@@ -222,6 +246,7 @@ function hitsActor(box, depthTol, attackerZ, target) {
 }
 
 function drawShadow(ctx, a) {
+  ctx.fillStyle = INK;
   const elev = -(a.y + a.h);
   const k = clamp(1 - elev / 260, 0.3, 1);
   ctx.beginPath();

@@ -1,11 +1,15 @@
-// SEEK desktop launcher.
+// The Endless March: Journey to the End - desktop launcher.
 //
-// The whole game (dist/seek.html) is embedded in this executable. On launch it
-// serves the game from 127.0.0.1 and opens it in a dedicated app window
+// The launcher ships next to a `game/` folder holding the game's files
+// (index.html + js/). On launch it serves that folder from 127.0.0.1 and opens
+// it in a dedicated app window
 // (Microsoft Edge / Chrome / Chromium in --app mode, with its own profile so it
 // behaves like a standalone program). The launcher exits when that window
 // closes. If no Chromium-based browser is found, the game opens in the default
 // browser instead and the launcher exits once the page stops checking in.
+//
+// A single-file copy of the game is also embedded, so the executable still
+// works if it is moved away from its `game/` folder.
 package main
 
 import (
@@ -21,8 +25,8 @@ import (
 	"time"
 )
 
-//go:embed seek.html
-var gameHTML string
+//go:embed game.html
+var embeddedHTML string
 
 // Injected into the page: keeps the launcher alive while the game is open and
 // lets F11 toggle fullscreen.
@@ -38,8 +42,33 @@ const launcherScript = `<script>
 })();
 </script>`
 
+func inject(html string) string {
+	return strings.Replace(html, "</body>", launcherScript+"\n</body>", 1)
+}
+
+// gameDir returns the `game/` folder beside the executable, if it holds the game.
+func gameDir() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	if real, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = real
+	}
+	dir := filepath.Join(filepath.Dir(exe), "game")
+	if exists(filepath.Join(dir, "index.html")) {
+		return dir
+	}
+	return ""
+}
+
 func main() {
-	page := strings.Replace(gameHTML, "</body>", launcherScript+"\n</body>", 1)
+	dir := gameDir()
+	embedded := inject(embeddedHTML)
+	var files http.Handler
+	if dir != "" {
+		files = http.FileServer(http.Dir(dir))
+	}
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -50,13 +79,23 @@ func main() {
 	var lastPing atomic.Int64
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
+		w.Header().Set("Cache-Control", "no-store")
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+			page := embedded
+			if dir != "" {
+				if b, err := os.ReadFile(filepath.Join(dir, "index.html")); err == nil {
+					page = inject(string(b))
+				}
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			fmt.Fprint(w, page)
+			return
+		}
+		if files == nil {
 			http.NotFound(w, r)
 			return
 		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-store")
-		fmt.Fprint(w, page)
+		files.ServeHTTP(w, r)
 	})
 	mux.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
 		lastPing.Store(time.Now().UnixNano())
@@ -86,7 +125,7 @@ func main() {
 	}
 
 	if err := openDefault(url); err != nil {
-		fail("Could not open a browser window to play SEEK.\n\nOpen this address in any modern browser while this program is running:\n" + url)
+		fail("Could not open a browser window to play The Endless March.\n\nOpen this address in any modern browser while this program is running:\n" + url)
 	}
 	waitWhileAlive(&lastPing, 60*time.Second)
 }
@@ -115,7 +154,7 @@ func dataDir() string {
 	if err != nil {
 		base = os.TempDir()
 	}
-	dir := filepath.Join(base, "SEEK")
+	dir := filepath.Join(base, "TheEndlessMarch")
 	os.MkdirAll(dir, 0o755)
 	return dir
 }

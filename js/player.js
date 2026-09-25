@@ -1,28 +1,21 @@
 'use strict';
-// The player: a black silhouette with an enormous black sword.
+// The player: an outlined figure carrying an enormous outlined sword.
 
 const SWORD_REST = -2.35; // blade resting up-and-back over the shoulder
 
 // Draws the humanoid + sword from a pose. Local space faces right, origin at the feet.
-function drawFigure(ctx, P, eye) {
+function drawFigure(ctx, P, showEye) {
   ctx.save();
   ctx.translate(P.x, P.y);
   ctx.scale(P.facing * P.sx, P.sy);
   ctx.rotate(P.lean);
-  ctx.strokeStyle = '#000';
-  ctx.fillStyle = '#000';
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
   // legs
   const hipY = -18;
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.moveTo(0, hipY);
-  ctx.lineTo(Math.sin(P.legA) * 18, hipY + Math.cos(P.legA) * 18);
-  ctx.moveTo(0, hipY);
-  ctx.lineTo(Math.sin(P.legB) * 18, hipY + Math.cos(P.legB) * 18);
-  ctx.stroke();
+  limb(ctx, 0, hipY, Math.sin(P.legB) * 18, hipY + Math.cos(P.legB) * 18, 6);
+  limb(ctx, 0, hipY, Math.sin(P.legA) * 18, hipY + Math.cos(P.legA) * 18, 6);
 
   // cloak tail streaming behind
   const c = P.cloak;
@@ -33,22 +26,14 @@ function drawFigure(ctx, P, eye) {
   ctx.lineTo(-14 - 16 * c, -22 + 4 * c + wig);
   ctx.lineTo(-8 - 6 * c, -32 + wig * 0.4);
   ctx.closePath();
-  ctx.fill();
+  finish(ctx);
 
   // torso + head
-  ctx.lineWidth = 12;
-  ctx.beginPath();
-  ctx.moveTo(0, hipY);
-  ctx.lineTo(2, -35);
-  ctx.stroke();
+  limb(ctx, 0, hipY, 2, -35, 12);
   ctx.beginPath();
   ctx.arc(4, -45, 8, 0, TAU);
-  ctx.fill();
-  if (eye) {
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(7, -47, 4, 2);
-    ctx.fillStyle = '#000';
-  }
+  finish(ctx);
+  if (showEye) eye(ctx, 7, -47, 4, 2);
 
   // arms + sword
   const a = P.sword;
@@ -56,13 +41,8 @@ function drawFigure(ctx, P, eye) {
   const nx = -dy, ny = dx;
   const shx = 3, shy = -34;
   const hx = shx + dx * 15, hy = shy + dy * 15;
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(shx, shy);
-  ctx.lineTo(hx, hy);
-  ctx.moveTo(shx - 2, shy + 1);
-  ctx.lineTo(hx - dx * 5, hy - dy * 5);
-  ctx.stroke();
+  limb(ctx, shx, shy, hx, hy, 3);
+  limb(ctx, shx - 2, shy + 1, hx - dx * 5, hy - dy * 5, 3);
 
   const L = PLAYER_CFG.bladeLength;
   const bx = hx + dx * 8, by = hy + dy * 8;
@@ -74,21 +54,19 @@ function drawFigure(ctx, P, eye) {
   ctx.lineTo(bx + dx * L * 0.8 - nx * w0 * 0.6, by + dy * L * 0.8 - ny * w0 * 0.6);
   ctx.lineTo(bx - nx * w0, by - ny * w0);
   ctx.closePath();
-  ctx.fill();
+  finish(ctx);
+  // fuller: the groove down the middle of the blade
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(bx + dx * 4, by + dy * 4);
+  ctx.lineTo(bx + dx * L * 0.72, by + dy * L * 0.72);
+  ctx.stroke();
   // guard, grip, pommel
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(hx + dx * 7 + nx * 12, hy + dy * 7 + ny * 12);
-  ctx.lineTo(hx + dx * 7 - nx * 12, hy + dy * 7 - ny * 12);
-  ctx.stroke();
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(hx - dx * 7, hy - dy * 7);
-  ctx.lineTo(hx + dx * 7, hy + dy * 7);
-  ctx.stroke();
+  limb(ctx, hx + dx * 7 + nx * 12, hy + dy * 7 + ny * 12, hx + dx * 7 - nx * 12, hy + dy * 7 - ny * 12, 6);
+  limb(ctx, hx - dx * 7, hy - dy * 7, hx + dx * 5, hy + dy * 5, 5);
   ctx.beginPath();
   ctx.arc(hx - dx * 9, hy - dy * 9, 3.5, 0, TAU);
-  ctx.fill();
+  finish(ctx);
 
   ctx.restore();
 }
@@ -552,14 +530,14 @@ class Player {
     ctx.translate(this.deathX + this.deathFacing * 26, Y + 12);
     ctx.scale(this.deathFacing, 1);
     ctx.rotate(-1.45 + (1 - fall) * 0.8);
-    ctx.fillStyle = '#000';
     const L = PLAYER_CFG.bladeLength;
+    ctx.lineJoin = 'round';
     ctx.beginPath();
     ctx.moveTo(0, 0); ctx.lineTo(L * 0.2, -6.5); ctx.lineTo(L, -6.5); ctx.lineTo(L, 6.5); ctx.lineTo(L * 0.2, 6);
     ctx.closePath();
-    ctx.fill();
-    ctx.fillRect(L - 2, -12, 5, 24);
-    ctx.fillRect(L, -2, 14, 4);
+    finish(ctx);
+    limb(ctx, L + 12, 0, L, 0, 5);
+    box(ctx, L - 2, -12, 5, 24);
     ctx.restore();
 
     const alpha = t < 0.6 ? 1 : Math.max(0, 1 - (t - 0.6) / 0.9);
@@ -586,18 +564,10 @@ function drawFigureBodyOnly(ctx, P) {
   ctx.translate(P.x, P.y);
   ctx.scale(P.facing * P.sx, P.sy);
   ctx.rotate(P.lean);
-  ctx.strokeStyle = '#000';
-  ctx.fillStyle = '#000';
-  ctx.lineCap = 'round';
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.moveTo(0, -18); ctx.lineTo(Math.sin(P.legA) * 18, -18 + Math.cos(P.legA) * 18);
-  ctx.moveTo(0, -18); ctx.lineTo(Math.sin(P.legB) * 18, -18 + Math.cos(P.legB) * 18);
-  ctx.stroke();
-  ctx.lineWidth = 12;
-  ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(2, -35); ctx.stroke();
-  ctx.beginPath(); ctx.arc(6, -43, 8, 0, TAU); ctx.fill();
-  ctx.lineWidth = 5;
-  ctx.beginPath(); ctx.moveTo(3, -34); ctx.lineTo(16, -20); ctx.stroke();
+  limb(ctx, 0, -18, Math.sin(P.legB) * 18, -18 + Math.cos(P.legB) * 18, 6);
+  limb(ctx, 0, -18, Math.sin(P.legA) * 18, -18 + Math.cos(P.legA) * 18, 6);
+  limb(ctx, 0, -18, 2, -35, 12);
+  ctx.beginPath(); ctx.arc(6, -43, 8, 0, TAU); finish(ctx);
+  limb(ctx, 3, -34, 16, -20, 3);
   ctx.restore();
 }

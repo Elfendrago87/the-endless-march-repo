@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SEEK (test build)</title>
+<title>The Endless March: Journey to the End (test build)</title>
 <style>
   html, body { margin: 0; padding: 0; height: 100%; background: #fff; overflow: hidden; }
   canvas { display: block; outline: none; cursor: crosshair; }
@@ -70,6 +70,58 @@ class Pool {
   }
 }
 
+// ---------------------------------------------------------------- outline drawing kit
+// Everything with a body (figures, enemies, weapons, structures) is drawn as a
+// white shape with a black outline. `inkFlash` inverts the fill for the frame
+// an actor is hit.
+const INK = '#000', PAPER = '#fff', OUTLINE = 2.5;
+let inkFlash = false;
+
+// Fill the current path as an outlined shape.
+function finish(ctx, flash) {
+  ctx.fillStyle = (flash || inkFlash) ? INK : PAPER;
+  ctx.fill();
+  ctx.lineWidth = OUTLINE;
+  ctx.strokeStyle = INK;
+  ctx.stroke();
+}
+
+// A limb: thin ones are plain sticks, thick ones are outlined tubes.
+function limb(ctx, x1, y1, x2, y2, w) {
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.strokeStyle = INK;
+  if (w < 5) {
+    ctx.lineWidth = OUTLINE;
+    ctx.stroke();
+    return;
+  }
+  ctx.lineWidth = w + OUTLINE;
+  ctx.stroke();
+  ctx.lineWidth = w - OUTLINE;
+  ctx.strokeStyle = inkFlash ? INK : PAPER;
+  ctx.stroke();
+  ctx.strokeStyle = INK;
+}
+
+// Outlined rectangle.
+function box(ctx, x, y, w, h, flash) {
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  finish(ctx, flash);
+}
+
+// Eyes and small marks are ink on paper (paper on ink while flashing).
+function eye(ctx, x, y, w, h, flash) {
+  ctx.fillStyle = (flash || inkFlash) ? PAPER : INK;
+  ctx.fillRect(x, y, w, h);
+}
+
+// Stroke colour for detail lines drawn inside a body.
+function detailInk(flash) { return (flash || inkFlash) ? PAPER : INK; }
+
 </script>
 <script>
 // ---- js/data.js
@@ -77,7 +129,7 @@ class Pool {
 // All tunable gameplay data lives here: player feel, sword attacks,
 // enemy archetypes, the scrolling stage and the ten wave compositions.
 //
-// SEEK is a belt-scroller: actors stand on a floor band and have
+// The Endless March is a belt-scroller: actors stand on a floor band and have
 //   x  - horizontal position
 //   z  - depth into the floor band (0 = back edge / horizon, DEPTH = front)
 //   y  - elevation: the body rect's top; bottom (y + h) is 0 on the ground,
@@ -674,9 +726,11 @@ class Stage {
     }
   }
 
+  // Distant structures: outlined shapes standing on the horizon.
   drawBack(ctx, camX, viewW, time) {
-    ctx.fillStyle = '#000';
-    ctx.strokeStyle = '#000';
+    ctx.strokeStyle = INK;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
     const off = camX * (1 - BG_PARALLAX);
     const lo = camX * BG_PARALLAX - 400, hi = camX * BG_PARALLAX + viewW + 400;
     for (const s of this.back) {
@@ -686,18 +740,13 @@ class Stage {
         case 'hill':
           ctx.beginPath();
           ctx.ellipse(x, b, s.w / 2, s.h, 0, Math.PI, 0);
-          ctx.fill();
+          finish(ctx);
           break;
-        case 'tree': {
-          ctx.lineCap = 'round';
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.moveTo(x, b); ctx.lineTo(x + 2, b - s.h);
-          ctx.moveTo(x + 1, b - s.h * 0.55); ctx.lineTo(x - 12 - s.s * 8, b - s.h * 0.8);
-          ctx.moveTo(x + 2, b - s.h * 0.75); ctx.lineTo(x + 14 + s.s * 6, b - s.h - 6);
-          ctx.stroke();
+        case 'tree':
+          limb(ctx, x, b, x + 2, b - s.h, 5);
+          limb(ctx, x + 1, b - s.h * 0.55, x - 12 - s.s * 8, b - s.h * 0.8, 3);
+          limb(ctx, x + 2, b - s.h * 0.75, x + 14 + s.s * 6, b - s.h - 6, 3);
           break;
-        }
         case 'column': {
           const top = b - s.h;
           ctx.beginPath();
@@ -705,64 +754,86 @@ class Stage {
           ctx.lineTo(x + s.w * 0.4, top - 4 * s.s); ctx.lineTo(x + s.w * 0.7, top + 8);
           ctx.lineTo(x + s.w, top + 2); ctx.lineTo(x + s.w, b);
           ctx.closePath();
-          ctx.fill();
-          ctx.fillRect(x - 4, b - 6, s.w + 8, 6);
+          finish(ctx);
+          box(ctx, x - 4, b - 6, s.w + 8, 6);
           break;
         }
         case 'arch':
-          ctx.fillRect(x, b - s.h, 14, s.h);
-          ctx.fillRect(x + s.w - 14, b - s.h, 14, s.h);
           ctx.beginPath();
+          ctx.moveTo(x, b);
+          ctx.lineTo(x, b - s.h);
           ctx.arc(x + s.w / 2, b - s.h, s.w / 2, Math.PI, 0);
+          ctx.lineTo(x + s.w, b);
+          ctx.lineTo(x + s.w - 14, b);
           ctx.lineTo(x + s.w - 14, b - s.h);
           ctx.arc(x + s.w / 2, b - s.h, s.w / 2 - 14, 0, Math.PI, true);
+          ctx.lineTo(x + 14, b);
           ctx.closePath();
-          ctx.fill();
+          finish(ctx);
           break;
         case 'block':
-          ctx.fillRect(x, b - s.h, s.w, s.h);
+          box(ctx, x, b - s.h, s.w, s.h);
           break;
-        case 'wall':
-          ctx.fillRect(x, b - s.h, s.w, s.h);
-          for (let cx = x; cx < x + s.w - 8; cx += 16) ctx.fillRect(cx, b - s.h - 8, 9, 8);
-          break;
-        case 'tower':
-          ctx.fillRect(x, b - s.h, s.w, s.h);
+        case 'wall': {
+          // one outline, crenellations included
+          const top = b - s.h;
           ctx.beginPath();
-          ctx.moveTo(x - 6, b - s.h); ctx.lineTo(x + s.w / 2, b - s.h - 30); ctx.lineTo(x + s.w + 6, b - s.h);
-          ctx.fill();
+          ctx.moveTo(x, b);
+          ctx.lineTo(x, top - 8);
+          let cx = x;
+          while (cx + 16 < x + s.w) {
+            ctx.lineTo(cx + 9, top - 8); ctx.lineTo(cx + 9, top);
+            ctx.lineTo(cx + 16, top); ctx.lineTo(cx + 16, top - 8);
+            cx += 16;
+          }
+          ctx.lineTo(x + s.w, top - 8);
+          ctx.lineTo(x + s.w, b);
+          ctx.closePath();
+          finish(ctx);
+          break;
+        }
+        case 'tower': {
+          const top = b - s.h, mid = x + s.w / 2;
+          box(ctx, x, top, s.w, s.h);
+          ctx.beginPath();
+          ctx.moveTo(x - 6, top); ctx.lineTo(mid, top - 30); ctx.lineTo(x + s.w + 6, top);
+          ctx.closePath();
+          finish(ctx);
+          limb(ctx, mid, top - 30, mid, top - 50, 2);
+          ctx.beginPath();
+          ctx.moveTo(mid, top - 50);
+          ctx.lineTo(mid + 12 + Math.sin(time * 3 + s.x) * 2, top - 46);
+          ctx.lineTo(mid, top - 42);
+          ctx.closePath();
+          finish(ctx);
+          // a slit window
           ctx.lineWidth = 1.5;
           ctx.beginPath();
-          ctx.moveTo(x + s.w / 2, b - s.h - 30); ctx.lineTo(x + s.w / 2, b - s.h - 50);
+          ctx.moveTo(mid, top + 12); ctx.lineTo(mid, top + 24);
           ctx.stroke();
-          ctx.beginPath();
-          ctx.moveTo(x + s.w / 2, b - s.h - 50);
-          ctx.lineTo(x + s.w / 2 + 12 + Math.sin(time * 3 + s.x) * 2, b - s.h - 46);
-          ctx.lineTo(x + s.w / 2, b - s.h - 42);
-          ctx.fill();
           break;
+        }
         case 'spears':
-          ctx.lineWidth = 1.5;
-          ctx.beginPath();
           for (let k = 0; k < s.w; k += 9) {
             const lean = Math.sin(k * 1.7 + s.x) * 3;
-            ctx.moveTo(x + k, b); ctx.lineTo(x + k + lean, b - s.h);
+            limb(ctx, x + k, b, x + k + lean, b - s.h, 2);
           }
-          ctx.stroke();
           break;
         case 'spire':
           ctx.beginPath();
           ctx.moveTo(x - 3, b); ctx.lineTo(x, b - s.h); ctx.lineTo(x + 3, b);
-          ctx.fill();
+          ctx.closePath();
+          finish(ctx);
           break;
       }
     }
     // horizon
+    ctx.fillStyle = INK;
     ctx.fillRect(camX - 50, FLOOR_Y - 1, viewW + 100, 2);
   }
 
   drawFloor(ctx, camX, viewW) {
-    ctx.fillStyle = '#000';
+    ctx.fillStyle = INK;
     for (const m of this.marks) {
       if (m.x < camX - 40 || m.x > camX + viewW + 40) continue;
       const k = m.z / DEPTH; // marks get a little heavier toward the front
@@ -770,10 +841,15 @@ class Stage {
     }
   }
 
+  // The near edge of the road: a ledge line with outlined rocks and grass.
   drawFront(ctx, camX, viewW, bottomY) {
     const top = FLOOR_Y + DEPTH + 26;
-    ctx.fillStyle = '#000';
+    ctx.fillStyle = PAPER;
     ctx.fillRect(camX - 50, top, viewW + 100, bottomY - top + 50);
+    ctx.fillStyle = INK;
+    ctx.fillRect(camX - 50, top - 1, viewW + 100, 2.5);
+    ctx.strokeStyle = INK;
+    ctx.lineJoin = 'round';
     const off = camX * (1 - FG_PARALLAX);
     const lo = camX * FG_PARALLAX - 200, hi = camX * FG_PARALLAX + viewW + 200;
     for (const f of this.front) {
@@ -791,7 +867,7 @@ class Stage {
       } else {
         ctx.ellipse(x + f.w / 2, top, f.w / 2, f.h, 0, Math.PI, 0);
       }
-      ctx.fill();
+      finish(ctx);
     }
   }
 }
@@ -820,6 +896,7 @@ function hitsActor(box, depthTol, attackerZ, target) {
 }
 
 function drawShadow(ctx, a) {
+  ctx.fillStyle = INK;
   const elev = -(a.y + a.h);
   const k = clamp(1 - elev / 260, 0.3, 1);
   ctx.beginPath();
@@ -1036,30 +1113,23 @@ const FX = {
 <script>
 // ---- js/player.js
 'use strict';
-// The player: a black silhouette with an enormous black sword.
+// The player: an outlined figure carrying an enormous outlined sword.
 
 const SWORD_REST = -2.35; // blade resting up-and-back over the shoulder
 
 // Draws the humanoid + sword from a pose. Local space faces right, origin at the feet.
-function drawFigure(ctx, P, eye) {
+function drawFigure(ctx, P, showEye) {
   ctx.save();
   ctx.translate(P.x, P.y);
   ctx.scale(P.facing * P.sx, P.sy);
   ctx.rotate(P.lean);
-  ctx.strokeStyle = '#000';
-  ctx.fillStyle = '#000';
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
   // legs
   const hipY = -18;
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.moveTo(0, hipY);
-  ctx.lineTo(Math.sin(P.legA) * 18, hipY + Math.cos(P.legA) * 18);
-  ctx.moveTo(0, hipY);
-  ctx.lineTo(Math.sin(P.legB) * 18, hipY + Math.cos(P.legB) * 18);
-  ctx.stroke();
+  limb(ctx, 0, hipY, Math.sin(P.legB) * 18, hipY + Math.cos(P.legB) * 18, 6);
+  limb(ctx, 0, hipY, Math.sin(P.legA) * 18, hipY + Math.cos(P.legA) * 18, 6);
 
   // cloak tail streaming behind
   const c = P.cloak;
@@ -1070,22 +1140,14 @@ function drawFigure(ctx, P, eye) {
   ctx.lineTo(-14 - 16 * c, -22 + 4 * c + wig);
   ctx.lineTo(-8 - 6 * c, -32 + wig * 0.4);
   ctx.closePath();
-  ctx.fill();
+  finish(ctx);
 
   // torso + head
-  ctx.lineWidth = 12;
-  ctx.beginPath();
-  ctx.moveTo(0, hipY);
-  ctx.lineTo(2, -35);
-  ctx.stroke();
+  limb(ctx, 0, hipY, 2, -35, 12);
   ctx.beginPath();
   ctx.arc(4, -45, 8, 0, TAU);
-  ctx.fill();
-  if (eye) {
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(7, -47, 4, 2);
-    ctx.fillStyle = '#000';
-  }
+  finish(ctx);
+  if (showEye) eye(ctx, 7, -47, 4, 2);
 
   // arms + sword
   const a = P.sword;
@@ -1093,13 +1155,8 @@ function drawFigure(ctx, P, eye) {
   const nx = -dy, ny = dx;
   const shx = 3, shy = -34;
   const hx = shx + dx * 15, hy = shy + dy * 15;
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(shx, shy);
-  ctx.lineTo(hx, hy);
-  ctx.moveTo(shx - 2, shy + 1);
-  ctx.lineTo(hx - dx * 5, hy - dy * 5);
-  ctx.stroke();
+  limb(ctx, shx, shy, hx, hy, 3);
+  limb(ctx, shx - 2, shy + 1, hx - dx * 5, hy - dy * 5, 3);
 
   const L = PLAYER_CFG.bladeLength;
   const bx = hx + dx * 8, by = hy + dy * 8;
@@ -1111,21 +1168,19 @@ function drawFigure(ctx, P, eye) {
   ctx.lineTo(bx + dx * L * 0.8 - nx * w0 * 0.6, by + dy * L * 0.8 - ny * w0 * 0.6);
   ctx.lineTo(bx - nx * w0, by - ny * w0);
   ctx.closePath();
-  ctx.fill();
+  finish(ctx);
+  // fuller: the groove down the middle of the blade
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(bx + dx * 4, by + dy * 4);
+  ctx.lineTo(bx + dx * L * 0.72, by + dy * L * 0.72);
+  ctx.stroke();
   // guard, grip, pommel
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.moveTo(hx + dx * 7 + nx * 12, hy + dy * 7 + ny * 12);
-  ctx.lineTo(hx + dx * 7 - nx * 12, hy + dy * 7 - ny * 12);
-  ctx.stroke();
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.moveTo(hx - dx * 7, hy - dy * 7);
-  ctx.lineTo(hx + dx * 7, hy + dy * 7);
-  ctx.stroke();
+  limb(ctx, hx + dx * 7 + nx * 12, hy + dy * 7 + ny * 12, hx + dx * 7 - nx * 12, hy + dy * 7 - ny * 12, 6);
+  limb(ctx, hx - dx * 7, hy - dy * 7, hx + dx * 5, hy + dy * 5, 5);
   ctx.beginPath();
   ctx.arc(hx - dx * 9, hy - dy * 9, 3.5, 0, TAU);
-  ctx.fill();
+  finish(ctx);
 
   ctx.restore();
 }
@@ -1589,14 +1644,14 @@ class Player {
     ctx.translate(this.deathX + this.deathFacing * 26, Y + 12);
     ctx.scale(this.deathFacing, 1);
     ctx.rotate(-1.45 + (1 - fall) * 0.8);
-    ctx.fillStyle = '#000';
     const L = PLAYER_CFG.bladeLength;
+    ctx.lineJoin = 'round';
     ctx.beginPath();
     ctx.moveTo(0, 0); ctx.lineTo(L * 0.2, -6.5); ctx.lineTo(L, -6.5); ctx.lineTo(L, 6.5); ctx.lineTo(L * 0.2, 6);
     ctx.closePath();
-    ctx.fill();
-    ctx.fillRect(L - 2, -12, 5, 24);
-    ctx.fillRect(L, -2, 14, 4);
+    finish(ctx);
+    limb(ctx, L + 12, 0, L, 0, 5);
+    box(ctx, L - 2, -12, 5, 24);
     ctx.restore();
 
     const alpha = t < 0.6 ? 1 : Math.max(0, 1 - (t - 0.6) / 0.9);
@@ -1623,19 +1678,11 @@ function drawFigureBodyOnly(ctx, P) {
   ctx.translate(P.x, P.y);
   ctx.scale(P.facing * P.sx, P.sy);
   ctx.rotate(P.lean);
-  ctx.strokeStyle = '#000';
-  ctx.fillStyle = '#000';
-  ctx.lineCap = 'round';
-  ctx.lineWidth = 6;
-  ctx.beginPath();
-  ctx.moveTo(0, -18); ctx.lineTo(Math.sin(P.legA) * 18, -18 + Math.cos(P.legA) * 18);
-  ctx.moveTo(0, -18); ctx.lineTo(Math.sin(P.legB) * 18, -18 + Math.cos(P.legB) * 18);
-  ctx.stroke();
-  ctx.lineWidth = 12;
-  ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(2, -35); ctx.stroke();
-  ctx.beginPath(); ctx.arc(6, -43, 8, 0, TAU); ctx.fill();
-  ctx.lineWidth = 5;
-  ctx.beginPath(); ctx.moveTo(3, -34); ctx.lineTo(16, -20); ctx.stroke();
+  limb(ctx, 0, -18, Math.sin(P.legB) * 18, -18 + Math.cos(P.legB) * 18, 6);
+  limb(ctx, 0, -18, Math.sin(P.legA) * 18, -18 + Math.cos(P.legA) * 18, 6);
+  limb(ctx, 0, -18, 2, -35, 12);
+  ctx.beginPath(); ctx.arc(6, -43, 8, 0, TAU); finish(ctx);
+  limb(ctx, 3, -34, 16, -20, 3);
   ctx.restore();
 }
 
@@ -2387,7 +2434,7 @@ class Enemy {
       const k = clamp(this.t / this.spawnDur, 0, 1);
       sy = easeOutCubic(k);
       alpha = k;
-      ctx.fillStyle = '#000';
+      ctx.fillStyle = INK;
       if (this.ai === 'flyer') {
         ctx.lineWidth = 2;
         ctx.strokeStyle = '#000';
@@ -2428,8 +2475,8 @@ class Enemy {
     } else if (s === 'grabbed') {
       ctx.rotate(-0.25);
     }
-    ctx.fillStyle = flash ? '#fff' : '#000';
-    ctx.strokeStyle = '#000';
+    inkFlash = flash;
+    ctx.strokeStyle = INK;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     switch (this.type) {
@@ -2445,6 +2492,7 @@ class Enemy {
       case 'elite': drawElite(ctx, this, flash, tele); break;
       case 'thief': drawThief(ctx, this, flash); break;
     }
+    inkFlash = false;
     ctx.restore();
 
     if (tele > 0 && alpha > 0.1) {
@@ -2511,25 +2559,8 @@ class Enemy {
 Enemy.throwSerial = 0;
 
 // ---------------------------------------------------------------- per-type silhouettes
-// Local space: origin at feet, facing right. fillStyle is preset (black or white on flash).
+// Local space: origin at feet, facing right. Drawn as outlines with the kit in util.js.
 
-function finish(ctx, flash) {
-  ctx.fill();
-  if (flash) { ctx.lineWidth = 3; ctx.stroke(); }
-}
-function limb(ctx, x1, y1, x2, y2, w) {
-  ctx.lineWidth = w;
-  ctx.beginPath();
-  ctx.moveTo(x1, y1);
-  ctx.lineTo(x2, y2);
-  ctx.stroke();
-}
-function eye(ctx, x, y, w, h, flash) {
-  const f = ctx.fillStyle;
-  ctx.fillStyle = flash ? '#000' : '#fff';
-  ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = f;
-}
 function walkCycle(e, rate) {
   return Math.hypot(e.vx, e.vz) > 20 ? Math.sin(e.anim * rate) : 0;
 }
@@ -2585,9 +2616,8 @@ function drawChaser(ctx, e, flash, tele) {
 
 function drawBrute(ctx, e, flash, tele) {
   const s = walkCycle(e, 6);
-  ctx.fillRect(-22, -32 + Math.max(0, s) * 3, 15, 32 - Math.max(0, s) * 3);
-  ctx.fillRect(6, -32 + Math.max(0, -s) * 3, 15, 32 - Math.max(0, -s) * 3);
-  if (flash) { ctx.lineWidth = 3; ctx.strokeRect(-22, -32, 15, 32); ctx.strokeRect(6, -32, 15, 32); }
+  box(ctx, -22, -32 + Math.max(0, s) * 3, 15, 32 - Math.max(0, s) * 3, flash);
+  box(ctx, 6, -32 + Math.max(0, -s) * 3, 15, 32 - Math.max(0, -s) * 3, flash);
   ctx.beginPath();
   ctx.moveTo(-28, -30); ctx.lineTo(-24, -74); ctx.lineTo(16, -82); ctx.lineTo(30, -34);
   ctx.closePath();
@@ -2668,7 +2698,7 @@ function drawSplitter(ctx, e, flash, tele, scale) {
   finish(ctx, flash);
   if (scale === 1) {
     // the fault line it will split along
-    ctx.strokeStyle = flash ? '#000' : '#fff';
+    ctx.strokeStyle = detailInk(flash);
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(0, -38); ctx.lineTo(-3, -30); ctx.lineTo(2, -22); ctx.lineTo(-2, -12); ctx.lineTo(1, -4);
@@ -2708,7 +2738,7 @@ function drawShielder(ctx, e, flash, tele) {
   ctx.moveTo(0, -60); ctx.lineTo(12, -56); ctx.lineTo(12, -6); ctx.lineTo(0, -2);
   ctx.closePath();
   finish(ctx, flash);
-  ctx.strokeStyle = flash ? '#000' : '#fff';
+  ctx.strokeStyle = detailInk(flash);
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(4, -52); ctx.lineTo(8, -50); ctx.lineTo(8, -12); ctx.lineTo(4, -9);
@@ -2824,7 +2854,7 @@ function drawThief(ctx, e, flash) {
     ctx.beginPath();
     ctx.arc(-12, -22 - b, 9, 0, TAU);
     finish(ctx, flash);
-    ctx.strokeStyle = flash ? '#000' : '#fff';
+    ctx.strokeStyle = detailInk(flash);
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(-15, -29 - b); ctx.lineTo(-9, -29 - b);
@@ -2888,6 +2918,7 @@ const Projectiles = {
 
   drawShadows(ctx) {
     const items = this.pool.items;
+    ctx.fillStyle = INK;
     for (let i = 0; i < items.length; i++) {
       const p = items[i];
       if (!p.active) continue;
@@ -2899,7 +2930,7 @@ const Projectiles = {
 
   draw(ctx) {
     const items = this.pool.items;
-    ctx.fillStyle = '#000';
+    ctx.lineJoin = 'round';
     for (let i = 0; i < items.length; i++) {
       const p = items[i];
       if (!p.active) continue;
@@ -2907,13 +2938,13 @@ const Projectiles = {
       ctx.translate(p.x, FLOOR_Y + p.z + p.y);
       ctx.rotate(p.spin);
       // a hand axe: haft + crescent head
-      ctx.fillRect(-p.r * 1.3, -1.5, p.r * 2.6, 3);
+      limb(ctx, -p.r * 1.3, 0, p.r * 1.3, 0, 3);
       ctx.beginPath();
       ctx.moveTo(p.r * 0.6, -p.r * 1.1);
       ctx.quadraticCurveTo(p.r * 2.2, 0, p.r * 0.6, p.r * 1.1);
       ctx.lineTo(p.r * 0.9, 0);
       ctx.closePath();
-      ctx.fill();
+      finish(ctx);
       ctx.restore();
     }
   },
@@ -2951,34 +2982,39 @@ const Items = {
   },
 
   draw(ctx) {
-    ctx.fillStyle = '#000';
+    ctx.lineJoin = 'round';
     for (const it of this.pool.items) {
       if (!it.active) continue;
       if (it.t > 11 && Math.floor(it.t * 10) % 2 === 0) continue; // about to vanish
       const x = it.x, fy = FLOOR_Y + it.z;
+      ctx.fillStyle = INK;
       ctx.beginPath();
       ctx.ellipse(x, fy, 8, 2, 0, 0, TAU);
       ctx.fill();
       const y = fy + it.y - Math.abs(Math.sin(it.t * 4)) * 2;
       if (it.kind === 'pot') {
-        // a small flask
+        // a small flask: one outline for neck and bowl, a cork on top
         ctx.beginPath();
-        ctx.arc(x, y - 7, 7, 0, TAU);
-        ctx.fill();
-        ctx.fillRect(x - 2.5, y - 19, 5, 7);
-        ctx.fillRect(x - 4, y - 21, 8, 2.5);
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(x - 3, y - 9, 2, 3);
-        ctx.fillStyle = '#000';
+        ctx.moveTo(x - 2.5, y - 13);
+        ctx.lineTo(x - 2.5, y - 18);
+        ctx.lineTo(x + 2.5, y - 18);
+        ctx.lineTo(x + 2.5, y - 13);
+        ctx.arc(x, y - 7, 7, -Math.PI / 2 + 0.37, Math.PI * 1.5 - 0.37);
+        ctx.closePath();
+        finish(ctx);
+        box(ctx, x - 4, y - 21, 8, 3);
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(x - 5, y - 6); ctx.lineTo(x + 5, y - 6);
+        ctx.stroke();
       } else {
-        // a loaf of bread
+        // a loaf of bread with scored top
         ctx.beginPath();
         ctx.ellipse(x, y - 6, 11, 7, 0, Math.PI, 0);
         ctx.lineTo(x + 11, y - 1);
         ctx.lineTo(x - 11, y - 1);
         ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = '#fff';
+        finish(ctx);
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(x - 4, y - 11); ctx.lineTo(x - 2, y - 6);
@@ -3570,8 +3606,8 @@ class Game {
       ctx.stroke();
       return;
     }
-    // eruption: black spikes burst out of the floor
-    ctx.fillStyle = '#000';
+    // eruption: outlined spikes burst out of the floor
+    ctx.lineJoin = 'miter';
     const scale = 40 + m.level * 16;
     for (const s of m.spikes) {
       const lt = t - s.d;
@@ -3587,7 +3623,7 @@ class Game {
       ctx.lineTo(x + 6, y - h * 0.75);
       ctx.lineTo(x + 10, y);
       ctx.closePath();
-      ctx.fill();
+      finish(ctx);
     }
   }
 
@@ -3954,32 +3990,46 @@ class Game {
     ctx.rect(sx - 60, -1200, d.slabW + 120, gy + 1200);
     ctx.clip();
     ctx.translate(0, d.slabH * (1 - rise));
-    ctx.fillStyle = '#000';
-    ctx.fillRect(sx, top, d.slabW, d.slabH);
-    ctx.fillRect(sx + 40, top - 30, d.slabW - 80, 32);
-    ctx.fillRect(sx + 100, top - 52, d.slabW - 200, 24);
+    ctx.lineJoin = 'miter';
+    box(ctx, sx + 110, top - 52, d.slabW - 220, 24);
+    box(ctx, sx + 40, top - 30, d.slabW - 80, 32);
+    box(ctx, sx, top, d.slabW, d.slabH);
+    // stone courses
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let y = top + 36; y < gy - 10; y += 36) { ctx.moveTo(sx + 12, y); ctx.lineTo(sx + d.slabW - 12, y); }
+    ctx.stroke();
     const o = this.doorOpen;
     const dw = d.doorW, dh = d.doorH;
     const gap = dw * easeInOutSine(o);
-    if (o > 0) {
-      ctx.save();
-      this.archPath(ctx, d.x, gy, dw, dh);
-      ctx.clip();
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(d.x - gap / 2, gy - dh - 2, gap, dh + 4);
-      ctx.restore();
-    }
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    this.archPath(ctx, d.x, gy, dw, dh);
-    ctx.stroke();
+    // the door: two outlined leaves parting on a white gap
+    ctx.save();
     this.archPath(ctx, d.x, gy, dw + 22, dh + 14);
+    ctx.fillStyle = PAPER;
+    ctx.fill();
+    ctx.lineWidth = OUTLINE;
     ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(d.x - gap / 2, gy - dh + (gap < 4 ? 0 : 6));
-    ctx.lineTo(d.x - gap / 2, gy);
-    ctx.moveTo(d.x + gap / 2, gy - dh + (gap < 4 ? 0 : 6));
-    ctx.lineTo(d.x + gap / 2, gy);
+    this.archPath(ctx, d.x, gy, dw, dh);
+    ctx.clip();
+    ctx.fillStyle = PAPER;
+    ctx.fillRect(d.x - dw / 2 - 2, gy - dh - 2, dw + 4, dh + 4);
+    const leaf = (dw - gap) / 2;
+    if (leaf > 0.5) {
+      box(ctx, d.x - dw / 2, gy - dh - 2, leaf, dh + 4);
+      box(ctx, d.x + gap / 2, gy - dh - 2, leaf, dh + 4);
+      // studs on the leaves
+      ctx.fillStyle = INK;
+      for (let yy = gy - dh * 0.75; yy < gy - 10; yy += dh / 4) {
+        if (leaf > 12) {
+          ctx.fillRect(d.x - gap / 2 - 9, yy, 3, 3);
+          ctx.fillRect(d.x + gap / 2 + 6, yy, 3, 3);
+        }
+      }
+    }
+    ctx.restore();
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = OUTLINE;
+    this.archPath(ctx, d.x, gy, dw, dh);
     ctx.stroke();
     ctx.restore();
   }
@@ -4089,16 +4139,17 @@ class Game {
     if (s === STATE.START) {
       const a = clamp(this.time * 1.2, 0, 1);
       ctx.globalAlpha = a;
-      this.text('SEEK', cx, 172, 132, { weight: 300, spacing: 44, align: 'center' });
+      this.text('THE ENDLESS MARCH', cx, 140, 60, { weight: 300, spacing: 16, align: 'center' });
+      this.text('JOURNEY TO THE END', cx, 182, 18, { weight: 400, spacing: 12, align: 'center' });
       ctx.globalAlpha = a * (0.45 + 0.35 * Math.sin(this.time * 2.5));
-      this.text('press any key', cx, 218, 15, { spacing: 4, align: 'center' });
+      this.text('press any key', cx, 226, 15, { spacing: 4, align: 'center' });
       if (window.SEEK_TEST_BUILD) {
         ctx.globalAlpha = a * 0.6;
         this.text('TEST BUILD   ·   N  skip wave   ·   H  heal + fill magic', cx, 30, 11, { spacing: 2, align: 'center' });
       }
       ctx.globalAlpha = a * 0.8;
       this.text('ARROWS / WASD  move      ←← / SHIFT  run      SPACE  jump      X / click  attack      F / right-click  back attack      V  magic      P  pause',
-        cx, VIEW_H - 10, 11, { spacing: 1, align: 'center', color: '#fff' });
+        cx, VIEW_H - 10, 11, { spacing: 1, align: 'center' });
       ctx.globalAlpha = 1;
     } else if (s === STATE.WAVE_INTRO) {
       const a = t < 0.25 ? t / 0.25 : t > 1.1 ? Math.max(0, 1 - (t - 1.1) / 0.3) : 1;
@@ -4133,7 +4184,7 @@ class Game {
     } else if (s === STATE.ENDING) {
       if (t > 1.5) {
         ctx.globalAlpha = clamp((t - 1.5) / 2.0, 0, 1);
-        this.text('SEEK', cx, 340, 96, { weight: 300, spacing: 36, align: 'center' });
+        this.text('THE ENDLESS MARCH', cx, 330, 54, { weight: 300, spacing: 14, align: 'center' });
       }
       if (t > 4.2) {
         ctx.globalAlpha = clamp((t - 4.2) / 2.0, 0, 1) * 0.8;

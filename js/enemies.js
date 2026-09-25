@@ -743,7 +743,7 @@ class Enemy {
       const k = clamp(this.t / this.spawnDur, 0, 1);
       sy = easeOutCubic(k);
       alpha = k;
-      ctx.fillStyle = '#000';
+      ctx.fillStyle = INK;
       if (this.ai === 'flyer') {
         ctx.lineWidth = 2;
         ctx.strokeStyle = '#000';
@@ -784,8 +784,8 @@ class Enemy {
     } else if (s === 'grabbed') {
       ctx.rotate(-0.25);
     }
-    ctx.fillStyle = flash ? '#fff' : '#000';
-    ctx.strokeStyle = '#000';
+    inkFlash = flash;
+    ctx.strokeStyle = INK;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     switch (this.type) {
@@ -801,6 +801,7 @@ class Enemy {
       case 'elite': drawElite(ctx, this, flash, tele); break;
       case 'thief': drawThief(ctx, this, flash); break;
     }
+    inkFlash = false;
     ctx.restore();
 
     if (tele > 0 && alpha > 0.1) {
@@ -867,25 +868,8 @@ class Enemy {
 Enemy.throwSerial = 0;
 
 // ---------------------------------------------------------------- per-type silhouettes
-// Local space: origin at feet, facing right. fillStyle is preset (black or white on flash).
+// Local space: origin at feet, facing right. Drawn as outlines with the kit in util.js.
 
-function finish(ctx, flash) {
-  ctx.fill();
-  if (flash) { ctx.lineWidth = 3; ctx.stroke(); }
-}
-function limb(ctx, x1, y1, x2, y2, w) {
-  ctx.lineWidth = w;
-  ctx.beginPath();
-  ctx.moveTo(x1, y1);
-  ctx.lineTo(x2, y2);
-  ctx.stroke();
-}
-function eye(ctx, x, y, w, h, flash) {
-  const f = ctx.fillStyle;
-  ctx.fillStyle = flash ? '#000' : '#fff';
-  ctx.fillRect(x, y, w, h);
-  ctx.fillStyle = f;
-}
 function walkCycle(e, rate) {
   return Math.hypot(e.vx, e.vz) > 20 ? Math.sin(e.anim * rate) : 0;
 }
@@ -941,9 +925,8 @@ function drawChaser(ctx, e, flash, tele) {
 
 function drawBrute(ctx, e, flash, tele) {
   const s = walkCycle(e, 6);
-  ctx.fillRect(-22, -32 + Math.max(0, s) * 3, 15, 32 - Math.max(0, s) * 3);
-  ctx.fillRect(6, -32 + Math.max(0, -s) * 3, 15, 32 - Math.max(0, -s) * 3);
-  if (flash) { ctx.lineWidth = 3; ctx.strokeRect(-22, -32, 15, 32); ctx.strokeRect(6, -32, 15, 32); }
+  box(ctx, -22, -32 + Math.max(0, s) * 3, 15, 32 - Math.max(0, s) * 3, flash);
+  box(ctx, 6, -32 + Math.max(0, -s) * 3, 15, 32 - Math.max(0, -s) * 3, flash);
   ctx.beginPath();
   ctx.moveTo(-28, -30); ctx.lineTo(-24, -74); ctx.lineTo(16, -82); ctx.lineTo(30, -34);
   ctx.closePath();
@@ -1024,7 +1007,7 @@ function drawSplitter(ctx, e, flash, tele, scale) {
   finish(ctx, flash);
   if (scale === 1) {
     // the fault line it will split along
-    ctx.strokeStyle = flash ? '#000' : '#fff';
+    ctx.strokeStyle = detailInk(flash);
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(0, -38); ctx.lineTo(-3, -30); ctx.lineTo(2, -22); ctx.lineTo(-2, -12); ctx.lineTo(1, -4);
@@ -1064,7 +1047,7 @@ function drawShielder(ctx, e, flash, tele) {
   ctx.moveTo(0, -60); ctx.lineTo(12, -56); ctx.lineTo(12, -6); ctx.lineTo(0, -2);
   ctx.closePath();
   finish(ctx, flash);
-  ctx.strokeStyle = flash ? '#000' : '#fff';
+  ctx.strokeStyle = detailInk(flash);
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(4, -52); ctx.lineTo(8, -50); ctx.lineTo(8, -12); ctx.lineTo(4, -9);
@@ -1180,7 +1163,7 @@ function drawThief(ctx, e, flash) {
     ctx.beginPath();
     ctx.arc(-12, -22 - b, 9, 0, TAU);
     finish(ctx, flash);
-    ctx.strokeStyle = flash ? '#000' : '#fff';
+    ctx.strokeStyle = detailInk(flash);
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(-15, -29 - b); ctx.lineTo(-9, -29 - b);

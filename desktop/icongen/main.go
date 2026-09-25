@@ -1,4 +1,4 @@
-// Draws the SEEK app icon: the black greatsword on white. Writes a 256px PNG.
+// Draws the app icon: the outlined greatsword on white. Writes a 256px PNG.
 package main
 
 import (
@@ -37,6 +37,25 @@ func main() {
 	grip := []pt{at(-0.33, 0.025), at(-0.18, 0.025), at(-0.18, -0.025), at(-0.33, -0.025)}
 	pommel := at(-0.36, 0)
 
+	sword := func(p pt) bool {
+		return inPoly(p, blade) || inPoly(p, guard) || inPoly(p, grip) ||
+			math.Hypot(p.x-pommel.x, p.y-pommel.y) < 0.035
+	}
+	// outline: inside the sword but within `t` of its edge
+	const t = 0.016
+	outline := func(p pt) bool {
+		if !sword(p) {
+			return false
+		}
+		for k := 0; k < 8; k++ {
+			a := float64(k) * math.Pi / 4
+			if !sword(pt{p.x + math.Cos(a)*t, p.y + math.Sin(a)*t}) {
+				return true
+			}
+		}
+		return false
+	}
+
 	img := image.NewNRGBA(image.Rect(0, 0, n, n))
 	const ss = 4
 	for y := 0; y < n; y++ {
@@ -52,8 +71,7 @@ func main() {
 						continue
 					}
 					inside++
-					if d > 0.095 || inPoly(p, blade) || inPoly(p, guard) || inPoly(p, grip) ||
-						math.Hypot(p.x-pommel.x, p.y-pommel.y) < 0.035 {
+					if d > 0.095 || outline(p) {
 						black++
 					}
 				}

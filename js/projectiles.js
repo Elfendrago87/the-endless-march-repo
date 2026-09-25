@@ -50,6 +50,7 @@ const Projectiles = {
 
   drawShadows(ctx) {
     const items = this.pool.items;
+    ctx.fillStyle = INK;
     for (let i = 0; i < items.length; i++) {
       const p = items[i];
       if (!p.active) continue;
@@ -61,7 +62,7 @@ const Projectiles = {
 
   draw(ctx) {
     const items = this.pool.items;
-    ctx.fillStyle = '#000';
+    ctx.lineJoin = 'round';
     for (let i = 0; i < items.length; i++) {
       const p = items[i];
       if (!p.active) continue;
@@ -69,13 +70,13 @@ const Projectiles = {
       ctx.translate(p.x, FLOOR_Y + p.z + p.y);
       ctx.rotate(p.spin);
       // a hand axe: haft + crescent head
-      ctx.fillRect(-p.r * 1.3, -1.5, p.r * 2.6, 3);
+      limb(ctx, -p.r * 1.3, 0, p.r * 1.3, 0, 3);
       ctx.beginPath();
       ctx.moveTo(p.r * 0.6, -p.r * 1.1);
       ctx.quadraticCurveTo(p.r * 2.2, 0, p.r * 0.6, p.r * 1.1);
       ctx.lineTo(p.r * 0.9, 0);
       ctx.closePath();
-      ctx.fill();
+      finish(ctx);
       ctx.restore();
     }
   },
@@ -113,34 +114,39 @@ const Items = {
   },
 
   draw(ctx) {
-    ctx.fillStyle = '#000';
+    ctx.lineJoin = 'round';
     for (const it of this.pool.items) {
       if (!it.active) continue;
       if (it.t > 11 && Math.floor(it.t * 10) % 2 === 0) continue; // about to vanish
       const x = it.x, fy = FLOOR_Y + it.z;
+      ctx.fillStyle = INK;
       ctx.beginPath();
       ctx.ellipse(x, fy, 8, 2, 0, 0, TAU);
       ctx.fill();
       const y = fy + it.y - Math.abs(Math.sin(it.t * 4)) * 2;
       if (it.kind === 'pot') {
-        // a small flask
+        // a small flask: one outline for neck and bowl, a cork on top
         ctx.beginPath();
-        ctx.arc(x, y - 7, 7, 0, TAU);
-        ctx.fill();
-        ctx.fillRect(x - 2.5, y - 19, 5, 7);
-        ctx.fillRect(x - 4, y - 21, 8, 2.5);
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(x - 3, y - 9, 2, 3);
-        ctx.fillStyle = '#000';
+        ctx.moveTo(x - 2.5, y - 13);
+        ctx.lineTo(x - 2.5, y - 18);
+        ctx.lineTo(x + 2.5, y - 18);
+        ctx.lineTo(x + 2.5, y - 13);
+        ctx.arc(x, y - 7, 7, -Math.PI / 2 + 0.37, Math.PI * 1.5 - 0.37);
+        ctx.closePath();
+        finish(ctx);
+        box(ctx, x - 4, y - 21, 8, 3);
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo(x - 5, y - 6); ctx.lineTo(x + 5, y - 6);
+        ctx.stroke();
       } else {
-        // a loaf of bread
+        // a loaf of bread with scored top
         ctx.beginPath();
         ctx.ellipse(x, y - 6, 11, 7, 0, Math.PI, 0);
         ctx.lineTo(x + 11, y - 1);
         ctx.lineTo(x - 11, y - 1);
         ctx.closePath();
-        ctx.fill();
-        ctx.strokeStyle = '#fff';
+        finish(ctx);
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(x - 4, y - 11); ctx.lineTo(x - 2, y - 6);

@@ -1,32 +1,41 @@
-# SEEK
+# The Endless March: Journey to the End
 
 A minimalist black-and-white belt-scroller in the spirit of Golden Axe, without the mounts.
 
-A black figure with an enormous black sword walks a long white road and fights ten waves along the way. After Wave 10, a monolith rises at the end of the road and its door opens onto blinding white light. What it means is up to the player.
+An outlined figure with an enormous sword walks a long white road and fights ten waves along the way. Everything with a body (the hero, the enemies, their weapons, the ruins and fortresses on the horizon) is drawn as a white shape with a black outline. After Wave 10, a monolith rises at the end of the road and its door opens onto blinding white light. What it means is up to the player.
 
 ## Play
 
-Open `index.html` in a modern browser. There is no build step and nothing to install.
+### Windows
 
-### Single-file builds
+Download `dist/The-Endless-March-Windows.zip`, unzip it, and double-click **The Endless March.exe**. There's nothing to install. The unzipped folder looks like this:
 
-`dist/seek.html` is the whole game in one self-contained HTML file. `dist/seek-test.html` is the same file with the debug keys switched on: `N` clears the current wave and `H` heals you and fills your magic. Rebuild both after changing the code:
-
-```sh
-node tools/build.js          # dist/seek.html
-node tools/build.js --test   # dist/seek-test.html
+```
+The Endless March/
+  The Endless March.exe     the launcher
+  game/                     the game's files (index.html, js/, icon.png)
+  README.txt                how to play
 ```
 
-### Windows app
-
-`dist/SEEK.exe` is a 64-bit Windows program with the whole game embedded in it. Double-click it to play; there's nothing to install. It opens the game in its own window using Microsoft Edge (built into Windows 10 and 11) in app mode, or Chrome if Edge is missing, or your default browser as a last resort. The program closes itself when you close the game window. Press F11 to toggle fullscreen.
+The launcher serves the `game/` folder on 127.0.0.1 and opens it in its own window: Microsoft Edge (built into Windows 10 and 11) in app mode, or Chrome if Edge is missing, or your default browser as a last resort. Closing the window closes the program, and F11 toggles fullscreen. Keep `game/` next to the exe. The exe also carries a built-in single-file copy of the game, so it still runs if it gets separated from the folder.
 
 The executable isn't code-signed, so Windows SmartScreen may warn about it the first time. Choose **More info → Run anyway**.
 
-The launcher's source is in `desktop/`. It's a small Go program that serves the embedded game on 127.0.0.1. To rebuild it (Go 1.24+ and Node; it builds from Linux, macOS or Windows):
+The launcher's source is in `desktop/`, a small Go program. To rebuild the bundle and the zip (needs Go 1.24+ and Node; it builds from Linux, macOS or Windows):
 
 ```sh
-./tools/build-exe.sh         # dist/SEEK.exe
+./tools/build-exe.sh
+```
+
+### In a browser
+
+Open `index.html` in a modern browser. There is no build step and nothing to install.
+
+`dist/the-endless-march.html` is the whole game in one self-contained HTML file. `dist/the-endless-march-test.html` is the same file with the debug keys switched on: `N` clears the current wave and `H` heals you and fills your magic. Rebuild both after changing the code:
+
+```sh
+node tools/build.js          # dist/the-endless-march.html
+node tools/build.js --test   # dist/the-endless-march-test.html
 ```
 
 If your browser blocks local files, serve the folder instead:
@@ -84,14 +93,14 @@ Enemies take turns: only a few can wind up an attack at the same time, and the r
 
 ```
 index.html          canvas + script tags
-js/util.js          math, AABB helpers, object Pool
+js/util.js          math, AABB helpers, object Pool, the outline drawing kit
 js/data.js          ALL tuning: player feel, attacks, grab/magic, enemies, stage, the 10 waves
 js/audio.js         procedural WebAudio sounds + the door drone
 js/input.js         keyboard / mouse / gamepad mapped to actions (double-tap run)
 js/world.js         Stage (parallax horizon, floor, foreground) + belt-scroller movement
 js/fx.js            pooled particles, slashes, rings, screen shake
 js/player.js        movement, run, combo, grab/knee/throw, magic, knockdown, lives, drawing
-js/enemies.js       Enemy class: per-archetype AI on the floor plane + silhouettes
+js/enemies.js       Enemy class: per-archetype AI on the floor plane + outlined figures
 js/projectiles.js   pooled thrown axes (parryable) and item pickups
 js/waves.js         data-driven WaveManager (required / spawned / alive / defeated)
 js/game.js          game states, camera locks, spawning, hits, magic, rest, door, HUD, ending

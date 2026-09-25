@@ -2,7 +2,7 @@
 // All tunable gameplay data lives here: player feel, sword attacks,
 // enemy archetypes, the scrolling stage and the ten wave compositions.
 //
-// SEEK is a belt-scroller: actors stand on a floor band and have
+// The Endless March is a belt-scroller: actors stand on a floor band and have
 //   x  - horizontal position
 //   z  - depth into the floor band (0 = back edge / horizon, DEPTH = front)
 //   y  - elevation: the body rect's top; bottom (y + h) is 0 on the ground,

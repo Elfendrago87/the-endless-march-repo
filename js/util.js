@@ -53,3 +53,55 @@ class Pool {
     for (let i = 0; i < it.length; i++) it[i].active = false;
   }
 }
+
+// ---------------------------------------------------------------- outline drawing kit
+// Everything with a body (figures, enemies, weapons, structures) is drawn as a
+// white shape with a black outline. `inkFlash` inverts the fill for the frame
+// an actor is hit.
+const INK = '#000', PAPER = '#fff', OUTLINE = 2.5;
+let inkFlash = false;
+
+// Fill the current path as an outlined shape.
+function finish(ctx, flash) {
+  ctx.fillStyle = (flash || inkFlash) ? INK : PAPER;
+  ctx.fill();
+  ctx.lineWidth = OUTLINE;
+  ctx.strokeStyle = INK;
+  ctx.stroke();
+}
+
+// A limb: thin ones are plain sticks, thick ones are outlined tubes.
+function limb(ctx, x1, y1, x2, y2, w) {
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.strokeStyle = INK;
+  if (w < 5) {
+    ctx.lineWidth = OUTLINE;
+    ctx.stroke();
+    return;
+  }
+  ctx.lineWidth = w + OUTLINE;
+  ctx.stroke();
+  ctx.lineWidth = w - OUTLINE;
+  ctx.strokeStyle = inkFlash ? INK : PAPER;
+  ctx.stroke();
+  ctx.strokeStyle = INK;
+}
+
+// Outlined rectangle.
+function box(ctx, x, y, w, h, flash) {
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  finish(ctx, flash);
+}
+
+// Eyes and small marks are ink on paper (paper on ink while flashing).
+function eye(ctx, x, y, w, h, flash) {
+  ctx.fillStyle = (flash || inkFlash) ? PAPER : INK;
+  ctx.fillRect(x, y, w, h);
+}
+
+// Stroke colour for detail lines drawn inside a body.
+function detailInk(flash) { return (flash || inkFlash) ? PAPER : INK; }
