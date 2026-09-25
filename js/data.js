@@ -10,7 +10,7 @@
 // Attacks connect when their box overlaps in x/elevation AND the two actors
 // are within the attack's depth tolerance.
 
-const GAME_VERSION = '0.6.0';
+const GAME_VERSION = '0.7.0';
 const VIEW_W = 1280;
 const VIEW_H = 720;
 const ZOOM = 1.5;          // world units -> screen pixels (final wave pulls back)
@@ -266,7 +266,61 @@ const STAGE = {
     { x: 8400, scenery: 'void' },
   ],
   door: { x: 10150, slabW: 300, slabH: 290, doorW: 110, doorH: 200 },
+
+  // Platforms: raised ledges you land on from above and jump up through.
+  // x/w along the road, z0..z1 across the depth, h = height of the top.
+  // `posts` stands it on legs; `move` makes it travel (axis 'x' or 'h').
+  platforms: [
+    { x: 290, w: 130, z0: 112, z1: 170, h: 58, posts: true },
+    { x: 1140, w: 170, z0: 26, z1: 86, h: 70, posts: true },
+    { x: 2080, w: 110, z0: 60, z1: 118, h: 80, move: { axis: 'x', range: 170, speed: 0.9 } },
+    { x: 2690, w: 90, z0: 70, z1: 130, h: 46, posts: true },
+    { x: 2790, w: 90, z0: 70, z1: 130, h: 92, posts: true },
+    { x: 3040, w: 150, z0: 18, z1: 78, h: 88, posts: true },
+    { x: 3450, w: 150, z0: 112, z1: 172, h: 88, posts: true },
+    { x: 4080, w: 210, z0: 60, z1: 138, h: 70, posts: true },
+    { x: 4940, w: 120, z0: 80, z1: 140, h: 40, move: { axis: 'h', range: 80, speed: 0.8 } },
+    { x: 6000, w: 150, z0: 18, z1: 72, h: 80, posts: true },
+    { x: 6350, w: 150, z0: 118, z1: 176, h: 80, posts: true },
+    { x: 6930, w: 120, z0: 70, z1: 130, h: 90, move: { axis: 'x', range: 250, speed: 0.7 } },
+    { x: 7780, w: 140, z0: 100, z1: 160, h: 60, posts: true },
+    { x: 8080, w: 140, z0: 30, z1: 90, h: 100, posts: true },
+  ],
+
+  // Power blocks: hit one from below (or strike it) and it gives up what it holds.
+  // `h` is the height of the block's underside.
+  blocks: [
+    { x: 540, z: 70, h: 100, item: 'power' },
+    { x: 1420, z: 140, h: 100, item: 'barrier' },
+    { x: 2480, z: 50, h: 100, item: 'heal' },
+    { x: 2860, z: 100, h: 150, item: 'rage' },
+    { x: 3300, z: 100, h: 100, item: 'power' },
+    { x: 4460, z: 40, h: 100, item: 'heal' },
+    { x: 5300, z: 150, h: 100, item: 'barrier' },
+    { x: 6200, z: 100, h: 100, item: 'power' },
+    { x: 7360, z: 60, h: 100, item: 'heal' },
+    { x: 7960, z: 130, h: 100, item: 'power' },
+    { x: 8300, z: 60, h: 140, item: 'barrier' },
+    { x: 9000, z: 95, h: 100, item: 'heal' },
+    { x: 9500, z: 95, h: 100, item: 'power' },
+  ],
 };
+
+// Powerups. The capsule gives each class its own power.
+const POWER_CFG = {
+  heal: 40,
+  barrier: { hits: 3, time: 16 },
+  multi: { time: 12 },                          // Warrior: melee hits every lane
+  shower: { time: 12, arrows: 6, dmg: 8 },      // Archer: each shot rains arrows over every lane
+  flight: { fuel: 6, maxHeight: 175, rise: 170, expire: 25 }, // Rogue: limited flight
+  dropChance: 0.08,                             // chance a fallen enemy leaves a powerup
+};
+
+// Rage: fills as you fight; unleash it (R) for stronger, unstoppable attacks.
+const POWER_NAMES = { multi: 'MULTI-LANE STRIKE', shower: 'ARROW SHOWER', flight: 'FLIGHT' };
+
+const RAGE_CFG = { max: 100, perHit: 2.5, perKill: 8, perDamage: 0.6, time: 8, dmgMul: 1.5, speedMul: 1.15, damageTaken: 0.7 };
+
 
 // ---------------------------------------------------------------- waves
 // Each wave is a list of phases; a phase is a list of [enemyType, count].

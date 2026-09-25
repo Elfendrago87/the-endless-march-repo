@@ -82,16 +82,22 @@ const Projectiles = {
   },
 };
 
+const POWER_KINDS = { heal: 1, barrier: 1, power: 1, rage: 1 };
+
 const Items = {
-  pool: new Pool(() => ({ active: false, kind: 'pot', x: 0, z: 0, y: 0, vx: 0, vy: 0, t: 0 }), 24),
+  pool: new Pool(() => ({ active: false, isItem: true, kind: 'pot', x: 0, z: 0, y: 0, vx: 0, vy: 0, t: 0, ground: 0 }), 24),
 
   clear() { this.pool.clear(); },
 
-  drop(kind, x, z) {
+  // `elev` drops it from a height (a power block's top); `exact` keeps its lane.
+  drop(kind, x, z, elev, exact) {
     const it = this.pool.obtain();
     if (!it) return;
-    it.active = true; it.kind = kind; it.x = x; it.z = clamp(z + rand(-12, 12), 4, DEPTH - 4);
-    it.y = -20; it.vx = rand(-90, 90); it.vy = -260; it.t = 0;
+    it.active = true; it.kind = kind; it.x = x;
+    it.z = exact ? z : clamp(z + rand(-12, 12), 4, DEPTH - 4);
+    it.y = -(elev || 0) - 20; it.t = 0; it.ground = 0;
+    if (exact) { it.vx = (Math.random() < 0.5 ? -1 : 1) * rand(50, 70); it.vy = -420; }
+    else { it.vx = rand(-90, 90); it.vy = -260; }
   },
 
   update(dt, g) {
@@ -99,60 +105,154 @@ const Items = {
     for (const it of this.pool.items) {
       if (!it.active) continue;
       it.t += dt;
-      if (it.y < 0 || it.vy < 0) {
+      // fall onto the floor or a ledge (and ride a moving ledge)
+      it.ground = groundUnder(it.x - 6, it.x + 6, it.z, -it.y);
+      if (it.y < -it.ground - 0.5 || it.vy < 0) {
         it.vy += GRAVITY * 0.7 * dt;
         it.y += it.vy * dt;
         it.x += it.vx * dt;
-        if (it.y >= 0) { it.y = 0; it.vy = it.vy > 200 ? -it.vy * 0.3 : 0; it.vx *= 0.5; }
-      }
-      if (it.t > 14) { it.active = false; continue; }
-      if (pl.alive && pl.onGround && it.t > 0.3 && Math.abs(it.x - pl.cx) < 22 && Math.abs(it.z - pl.z) < 14) {
+        if (it.y >= -it.ground) { it.y = -it.ground; it.vy = it.vy > 200 ? -it.vy * 0.3 : 0; it.vx *= 0.5; }
+      } else it.y = -it.ground;
+      const life = POWER_KINDS[it.kind] ? 20 : 14;
+      if (it.t > life) { it.active = false; continue; }
+      if (pl.alive && it.t > 0.3 && Math.abs(it.x - pl.cx) < 22 && Math.abs(it.z - pl.z) < 14 && Math.abs(pl.bottom - it.y) < 26) {
         it.active = false;
-        g.pickUp(it.kind, it.x, it.z);
+        g.pickUp(it.kind, it.x, it.z, -it.y);
       }
     }
   },
 
-  draw(ctx) {
-    ctx.lineJoin = 'round';
+  // Shadows first, bodies in the depth-sorted draw list.
+  drawShadows(ctx) {
+    ctx.fillStyle = INK;
     for (const it of this.pool.items) {
       if (!it.active) continue;
-      if (it.t > 11 && Math.floor(it.t * 10) % 2 === 0) continue; // about to vanish
-      const x = it.x, fy = FLOOR_Y + it.z;
-      ctx.fillStyle = INK;
       ctx.beginPath();
-      ctx.ellipse(x, fy, 8, 2, 0, 0, TAU);
+      ctx.ellipse(it.x, FLOOR_Y + it.z - it.ground, 8, 2, 0, 0, TAU);
       ctx.fill();
-      const y = fy + it.y - Math.abs(Math.sin(it.t * 4)) * 2;
-      if (it.kind === 'pot') {
-        // a small flask: one outline for neck and bowl, a cork on top
-        ctx.beginPath();
-        ctx.moveTo(x - 2.5, y - 13);
-        ctx.lineTo(x - 2.5, y - 18);
-        ctx.lineTo(x + 2.5, y - 18);
-        ctx.lineTo(x + 2.5, y - 13);
-        ctx.arc(x, y - 7, 7, -Math.PI / 2 + 0.37, Math.PI * 1.5 - 0.37);
-        ctx.closePath();
-        finish(ctx);
-        box(ctx, x - 4, y - 21, 8, 3);
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.moveTo(x - 5, y - 6); ctx.lineTo(x + 5, y - 6);
-        ctx.stroke();
-      } else {
-        // a loaf of bread with scored top
-        ctx.beginPath();
-        ctx.ellipse(x, y - 6, 11, 7, 0, Math.PI, 0);
-        ctx.lineTo(x + 11, y - 1);
-        ctx.lineTo(x - 11, y - 1);
-        ctx.closePath();
-        finish(ctx);
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(x - 4, y - 11); ctx.lineTo(x - 2, y - 6);
-        ctx.moveTo(x + 2, y - 11); ctx.lineTo(x + 4, y - 6);
-        ctx.stroke();
+    }
+  },
+
+  draw(ctx, it) {
+    const life = POWER_KINDS[it.kind] ? 20 : 14;
+    if (it.t > life - 3 && Math.floor(it.t * 10) % 2 === 0) return; // about to vanish
+    ctx.lineJoin = 'round';
+    const x = it.x;
+    const y = FLOOR_Y + it.z + it.y - Math.abs(Math.sin(it.t * 4)) * 2;
+    if (POWER_KINDS[it.kind]) { this.drawPower(ctx, it, x, y); return; }
+    if (it.kind === 'pot') {
+      // a small flask: one outline for neck and bowl, a cork on top
+      ctx.beginPath();
+      ctx.moveTo(x - 2.5, y - 13);
+      ctx.lineTo(x - 2.5, y - 18);
+      ctx.lineTo(x + 2.5, y - 18);
+      ctx.lineTo(x + 2.5, y - 13);
+      ctx.arc(x, y - 7, 7, -Math.PI / 2 + 0.37, Math.PI * 1.5 - 0.37);
+      ctx.closePath();
+      finish(ctx);
+      box(ctx, x - 4, y - 21, 8, 3);
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(x - 5, y - 6); ctx.lineTo(x + 5, y - 6);
+      ctx.stroke();
+    } else {
+      // a loaf of bread with scored top
+      ctx.beginPath();
+      ctx.ellipse(x, y - 6, 11, 7, 0, Math.PI, 0);
+      ctx.lineTo(x + 11, y - 1);
+      ctx.lineTo(x - 11, y - 1);
+      ctx.closePath();
+      finish(ctx);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x - 4, y - 11); ctx.lineTo(x - 2, y - 6);
+      ctx.moveTo(x + 2, y - 11); ctx.lineTo(x + 4, y - 6);
+      ctx.stroke();
+    }
+  },
+
+  // Powerups: outlined shapes that bob and glint.
+  drawPower(ctx, it, x, y) {
+    const cy = y - 13 - Math.sin(it.t * 3) * 2;
+    ctx.fillStyle = INK;
+    ctx.strokeStyle = INK;
+    // a glint that turns around it
+    const ga = it.t * 3;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let k = 0; k < 4; k++) {
+      const a = ga + k * Math.PI / 2;
+      ctx.moveTo(x + Math.cos(a) * 15, cy + Math.sin(a) * 15);
+      ctx.lineTo(x + Math.cos(a) * 19, cy + Math.sin(a) * 19);
+    }
+    ctx.stroke();
+    if (it.kind === 'heal') {
+      // a heart
+      ctx.beginPath();
+      ctx.moveTo(x, cy + 9);
+      ctx.bezierCurveTo(x - 14, cy - 1, x - 9, cy - 13, x, cy - 5);
+      ctx.bezierCurveTo(x + 9, cy - 13, x + 14, cy - 1, x, cy + 9);
+      ctx.closePath();
+      finish(ctx);
+      ctx.fillStyle = INK;
+      ctx.fillRect(x - 1.5, cy - 4, 3, 8); ctx.fillRect(x - 4, cy - 1.5, 8, 3);
+    } else if (it.kind === 'barrier') {
+      // a hexagonal force-field bubble
+      ctx.beginPath();
+      for (let k = 0; k < 6; k++) {
+        const a = k * Math.PI / 3 + Math.PI / 6;
+        const px = x + Math.cos(a) * 11, py = cy + Math.sin(a) * 11;
+        if (k) ctx.lineTo(px, py); else ctx.moveTo(px, py);
       }
+      ctx.closePath();
+      finish(ctx);
+      ctx.fillStyle = INK;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(x, cy, 6, 0, TAU);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x - 2, cy - 2, 2, 0, TAU);
+      ctx.fill();
+    } else if (it.kind === 'rage') {
+      // a spiked burst
+      ctx.beginPath();
+      for (let k = 0; k < 16; k++) {
+        const a = k * Math.PI / 8 + it.t;
+        const r = k % 2 ? 6 : 12;
+        const px = x + Math.cos(a) * r, py = cy + Math.sin(a) * r;
+        if (k) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+      }
+      ctx.closePath();
+      finish(ctx);
+      ctx.fillStyle = INK;
+      ctx.beginPath(); ctx.arc(x, cy, 2.5, 0, TAU); ctx.fill();
+    } else {
+      // the class capsule: a pill with the class's sign on it
+      ctx.beginPath();
+      ctx.moveTo(x - 7, cy - 7); ctx.lineTo(x + 7, cy - 7);
+      ctx.arc(x + 7, cy, 7, -Math.PI / 2, Math.PI / 2);
+      ctx.lineTo(x - 7, cy + 7);
+      ctx.arc(x - 7, cy, 7, Math.PI / 2, Math.PI * 1.5);
+      ctx.closePath();
+      finish(ctx);
+      ctx.fillStyle = INK;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      const k = typeof SEEK !== 'undefined' && SEEK.player ? SEEK.player.cls.key : 'warrior';
+      if (k === 'archer') {
+        // three falling arrows
+        for (let i = -1; i <= 1; i++) { ctx.moveTo(x + i * 5, cy - 4); ctx.lineTo(x + i * 5, cy + 4); ctx.moveTo(x + i * 5 - 2, cy + 1.5); ctx.lineTo(x + i * 5, cy + 4); ctx.lineTo(x + i * 5 + 2, cy + 1.5); }
+      } else if (k === 'rogue') {
+        // a wing
+        ctx.moveTo(x - 8, cy + 3); ctx.quadraticCurveTo(x - 2, cy - 7, x + 9, cy - 4);
+        ctx.moveTo(x - 5, cy + 3); ctx.lineTo(x + 7, cy - 1); ctx.moveTo(x - 2, cy + 3); ctx.lineTo(x + 5, cy + 2);
+      } else {
+        // three stacked lanes with a slash across
+        for (let i = -1; i <= 1; i++) { ctx.moveTo(x - 9, cy + i * 4); ctx.lineTo(x + 9, cy + i * 4); }
+        ctx.moveTo(x - 5, cy + 6); ctx.lineTo(x + 5, cy - 6);
+      }
+      ctx.stroke();
     }
   },
 };
@@ -195,16 +295,18 @@ const Arrows = {
       if (a.spec.fire && Math.random() < 0.6) {
         FX.particle(a.x - sign(a.vx) * 10, FLOOR_Y + a.z + a.y, -a.vx * 0.05, -rand(30, 90), rand(0.2, 0.4), rand(2, 3.5), false, -80, 2);
       }
-      if (a.y >= -2) {
-        // into the ground: it stays there a moment
-        a.y = -2;
+      const gr = a.vy > 0 ? groundUnder(a.x - 1, a.x + 1, a.z, -a.y + 14) : 0;
+      if (a.y >= -gr - 2) {
+        // into the ground (or a ledge): it stays there a moment
+        a.y = -gr - 2;
         a.stuck = 0.9;
-        FX.dust(a.x, FLOOR_Y + a.z, 3);
+        FX.dust(a.x, FLOOR_Y + a.z - gr, 3);
         continue;
       }
       if (a.life <= 0 || a.y < -600 || a.x < g.cam.x - 60 || a.x > g.cam.x + g.viewW + 60) { a.active = false; continue; }
       const dir = sign(a.vx) || 1;
       const tipX = a.x + dir * 10;
+      if (g.strikeBlock(tipX - 2, tipX + 2, a.z, a.y, a.y)) { a.active = false; continue; }
       for (const e of g.enemies) {
         if (!e.active || e.untouchable || e.lastArrowId === a.id) continue;
         if (Math.abs(e.z - a.z) > LANE) continue;

@@ -1,5 +1,5 @@
 // Offline cache for the installed (home screen) version of the game.
-const CACHE = 'endless-march-v0.6.0';
+const CACHE = 'endless-march-v0.7.0';
 const FILES = [
   './', './index.html', './manifest.webmanifest',
   './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',

@@ -222,8 +222,143 @@ class Stage {
   }
 }
 
-// Moves an actor on the floor plane; handles gravity landing and bounds.
-function moveActor(a, dt, minX, maxX, gravity) {
+// ---------------------------------------------------------------- platforms
+// Semisolid ledges: you land on them from above and jump up through them.
+// Power blocks are small platforms too (you can stand on them).
+let PLATFORMS = [];
+
+class Platform {
+  constructor(d) {
+    this.d = d;
+    this.x = d.x; this.w = d.w; this.z0 = d.z0; this.z1 = d.z1; this.h = d.h;
+    this.baseX = d.x; this.baseH = d.h;
+    this.dx = 0; this.dh = 0; this.t = 0;
+    this.block = null;
+    this.fade = 1;
+  }
+  get z() { return this.z0 - 3; }  // just behind its back edge: draw order among actors
+
+  update(dt) {
+    const m = this.d.move;
+    if (!m) { this.dx = 0; this.dh = 0; return; }
+    this.t += dt;
+    const off = Math.sin(this.t * m.speed) * m.range * 0.5;
+    const px = this.x, ph = this.h;
+    if (m.axis === 'x') this.x = this.baseX + m.range * 0.5 + off;
+    else this.h = this.baseH + m.range * 0.5 + off;
+    this.dx = this.x - px; this.dh = this.h - ph;
+  }
+
+  contains(x0, x1, z) { return x1 > this.x && x0 < this.x + this.w && z >= this.z0 - 2 && z <= this.z1 + 2; }
+
+  drawShadow(ctx) {
+    ctx.fillStyle = INK;
+    ctx.globalAlpha = 0.12;
+    ctx.fillRect(this.x + 4, FLOOR_Y + this.z0 + 4, this.w - 8, this.z1 - this.z0 - 4);
+    ctx.globalAlpha = 1;
+  }
+
+  draw(ctx) {
+    if (this.block) { this.block.draw(ctx); return; }
+    const top = FLOOR_Y - this.h, x = this.x, w = this.w;
+    ctx.save();
+    ctx.globalAlpha *= this.fade;
+    const zb = top + this.z0, zf = top + this.z1;
+    ctx.lineJoin = 'miter';
+    if (this.d.posts) {
+      // legs down to the floor at the front corners
+      limb(ctx, x + 10, zf + 12, x + 10, FLOOR_Y + this.z1, 6);
+      limb(ctx, x + w - 10, zf + 12, x + w - 10, FLOOR_Y + this.z1, 6);
+    }
+    // top face (seen from above at the road's angle) and front face
+    box(ctx, x, zb, w, zf - zb);
+    box(ctx, x, zf, w, 12);
+    // rivets on the front, a seam on the top: a little machined, a little ruined
+    ctx.fillStyle = INK;
+    for (let k = x + 8; k < x + w - 4; k += 18) ctx.fillRect(k, zf + 5, 2.5, 2.5);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + 6, zb + (zf - zb) * 0.5); ctx.lineTo(x + w - 6, zb + (zf - zb) * 0.5);
+    ctx.stroke();
+    if (this.d.move) {
+      // chevrons show which way it travels
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      const cx = x + w / 2, cy = zf + 6;
+      if (this.d.move.axis === 'x') { ctx.moveTo(cx - 14, cy - 3); ctx.lineTo(cx - 19, cy); ctx.lineTo(cx - 14, cy + 3); ctx.moveTo(cx + 14, cy - 3); ctx.lineTo(cx + 19, cy); ctx.lineTo(cx + 14, cy + 3); }
+      else { ctx.moveTo(cx - 4, cy - 1); ctx.lineTo(cx, cy - 4); ctx.lineTo(cx + 4, cy - 1); ctx.moveTo(cx - 4, cy + 2); ctx.lineTo(cx, cy + 5); ctx.lineTo(cx + 4, cy + 2); }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Fades out while it hides the given actor standing behind it.
+  updateFade(a, dt) {
+    const top = FLOOR_Y + this.z0 - this.h, bottom = FLOOR_Y + this.z1 - this.h + 12;
+    const feet = FLOOR_Y + a.z + a.y + a.h, head = feet - a.h;
+    const hidden = a.z < this.z0 - 3 && a.x + a.w > this.x && a.x < this.x + this.w && feet > top && head < bottom;
+    this.fade = approach(this.fade, hidden ? 0.35 : 1, dt * 4);
+  }
+}
+
+// A power block: hit it from below or strike it and it gives up its powerup.
+class PowerBlock {
+  constructor(d) {
+    this.d = d;
+    this.x = d.x - 13; this.w = 26; this.zc = d.z; this.h = d.h; this.size = 24;
+    this.used = false; this.bounce = 0; this.item = d.item;
+    this.plat = new Platform({ x: this.x, w: this.w, z0: d.z - 12, z1: d.z + 12, h: d.h + this.size });
+    this.plat.block = this;
+  }
+
+  draw(ctx) {
+    const lift = Math.sin(Math.min(1, this.bounce) * Math.PI) * 8;
+    const x = this.x, top = FLOOR_Y + this.zc - this.h - this.size - lift;
+    ctx.lineJoin = 'miter';
+    // front face and a sliver of top
+    box(ctx, x, top + 6, this.w, this.size);
+    ctx.beginPath();
+    ctx.moveTo(x, top + 6); ctx.lineTo(x + 5, top); ctx.lineTo(x + this.w + 5, top); ctx.lineTo(x + this.w, top + 6);
+    ctx.closePath();
+    finish(ctx);
+    ctx.fillStyle = INK;
+    if (!this.used) {
+      // a four-point star: something is inside
+      const cx = x + this.w / 2, cy = top + 6 + this.size / 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 8); ctx.lineTo(cx + 2.5, cy - 2.5); ctx.lineTo(cx + 8, cy); ctx.lineTo(cx + 2.5, cy + 2.5);
+      ctx.lineTo(cx, cy + 8); ctx.lineTo(cx - 2.5, cy + 2.5); ctx.lineTo(cx - 8, cy); ctx.lineTo(cx - 2.5, cy - 2.5);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      // spent: rivets only
+      ctx.fillRect(x + 4, top + 10, 2.5, 2.5); ctx.fillRect(x + this.w - 6.5, top + 10, 2.5, 2.5);
+      ctx.fillRect(x + 4, top + this.size + 1, 2.5, 2.5); ctx.fillRect(x + this.w - 6.5, top + this.size + 1, 2.5, 2.5);
+    }
+    // its shadow on the floor
+    ctx.globalAlpha = 0.18;
+    ctx.beginPath();
+    ctx.ellipse(x + this.w / 2, FLOOR_Y + this.zc, 14, 3, 0, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+// Height of the highest platform top under (x, z) that is at or below `elev`.
+function groundUnder(x0, x1, z, elev) {
+  let g = 0;
+  for (let i = 0; i < PLATFORMS.length; i++) {
+    const p = PLATFORMS[i];
+    if (p.h <= elev + 0.5 && p.h > g && p.contains(x0, x1, z)) g = p.h;
+  }
+  return g;
+}
+
+// Moves an actor on the floor plane; handles gravity, landing on the floor or
+// on a platform (and riding a moving one), and bounds.
+function moveActor(a, dt, minX, maxX, gravity, noPlatforms) {
+  // ride the platform we're standing on
+  if (a.plat && a.onGround) { a.x += a.plat.dx; a.y -= a.plat.dh; }
   if (gravity) a.vy = Math.min(a.vy + GRAVITY * dt, 1150);
   a.hitWall = 0;
   a.x += a.vx * dt;
@@ -232,12 +367,31 @@ function moveActor(a, dt, minX, maxX, gravity) {
   a.z += a.vz * dt;
   if (a.z < 0) { a.z = 0; if (a.vz < 0) a.vz = 0; }
   else if (a.z > DEPTH) { a.z = DEPTH; if (a.vz > 0) a.vz = 0; }
+  const prevElev = -(a.y + a.h);
   a.y += a.vy * dt;
+  const elev = -(a.y + a.h);
+  a.onGround = false;
+  a.plat = null;
+  if (!noPlatforms && a.vy >= 0) {
+    // land on the highest platform we fell onto (or are standing on)
+    let best = null;
+    for (let i = 0; i < PLATFORMS.length; i++) {
+      const p = PLATFORMS[i];
+      if (prevElev >= p.h - 1.5 && elev <= p.h && p.contains(a.x, a.x + a.w, a.z) && (!best || p.h > best.h)) best = p;
+    }
+    if (best) {
+      a.y = -best.h - a.h;
+      a.vy = 0;
+      a.onGround = true;
+      a.plat = best;
+      return;
+    }
+  }
   if (a.y + a.h >= 0) {
     a.y = -a.h;
     if (a.vy > 0) a.vy = 0;
     a.onGround = true;
-  } else a.onGround = false;
+  }
 }
 
 // Melee connection test in belt-scroller space.
@@ -248,8 +402,9 @@ function hitsActor(box, depthTol, attackerZ, target) {
 function drawShadow(ctx, a) {
   ctx.fillStyle = INK;
   const elev = -(a.y + a.h);
-  const k = clamp(1 - elev / 260, 0.3, 1);
+  const g = groundUnder(a.x, a.x + a.w, a.z, elev);
+  const k = clamp(1 - (elev - g) / 260, 0.3, 1);
   ctx.beginPath();
-  ctx.ellipse(a.x + a.w / 2, FLOOR_Y + a.z, (a.w * 0.6 + 6) * k, 3.2 * k, 0, 0, TAU);
+  ctx.ellipse(a.x + a.w / 2, FLOOR_Y + a.z - g, (a.w * 0.6 + 6) * k, 3.2 * k, 0, 0, TAU);
   ctx.fill();
 }

@@ -8,7 +8,7 @@ An outlined figure with an enormous sword walks a long white road and fights ten
 
 ## Play
 
-The current version is **0.6.0**. See [CHANGELOG.md](CHANGELOG.md) for every version.
+The current version is **0.7.0**. See [CHANGELOG.md](CHANGELOG.md) for every version.
 
 ### Windows
 
@@ -52,7 +52,7 @@ The first build creates a signing key at `~/.android/endless-march.jks`. Keep it
 
 ### Touch controls
 
-On a phone or tablet the controls appear on screen the first time you touch it: a floating stick on the left half (push it to the rim to run) and ATTACK, JUMP, BACK, RUN (DASH for the Rogue) and MAGIC buttons on the right, plus II to pause. Tap a path on the class screen to choose it, and tap it again to start. Play in landscape.
+On a phone or tablet the controls appear on screen the first time you touch it: a floating stick on the left half (push it to the rim to run) and ATTACK, JUMP, BACK, RUN (DASH for the Rogue) and MAGIC buttons on the right, plus II to pause. A RAGE button appears when the rage meter is full. Tap a path on the class screen to choose it, and tap it again to start. Play in landscape.
 
 ### In a browser
 
@@ -100,6 +100,8 @@ Arrows fly down the lane you stand in, stick in the ground where they land, and 
 | Attack (repeat for a three-hit combo) | X / J | left click / X |
 | Back attack (hits both sides) | F / U, or Jump + Attack together | right click / B |
 | Magic | V / Q / L | Y |
+| Rage (when the meter is full) | R / E / I | LB / LT |
+| Fly (Rogue, with the flight power) | hold Jump in the air | hold A |
 | Pause | P / Esc | Start |
 | Mute | M | |
 
@@ -116,6 +118,11 @@ Arrows fly down the lane you stand in, stick in the ground where they land, and 
 - **Magic pots.** Small thieves carrying sacks wander through some waves. Hit them to knock loose pots and bread. Magic spends every pot you carry at once. More pots make a bigger eruption of black spikes, which hits every enemy on screen.
 - **Rest.** After waves 3 and 6, night falls and the world inverts. Thieves come for your sack, so hit them for pots. You recover some health at dawn.
 - **Lives.** You have 3 lives and 100 HP each. Falling spends a life and you stand back up where you fell, knocking back anyone nearby. When the last life is gone, the run starts over at Wave 1.
+- **Ledges.** Raised platforms stand along the road, some of them moving. Jump up through one from below and land on top; a moving ledge carries you with it. Enemies climb up after you (flyers stay in the air). Arrows stick in ledges.
+- **Power blocks.** Floating blocks marked with a star. Jump into one from below, strike it with a sword or dagger, or shoot it, and it pops out what it holds. There are 13 along the road, and they refill every run. Enemies sometimes drop powerups too (the big ones always do).
+- **Powerups.** A **heart** heals 40 HP. The **force field** (hexagon) absorbs the next 3 hits within 16 seconds. The **rage burst** (spiked star) fills the rage meter. The **capsule** gives your class its own power: the Warrior's strikes hit **every lane** for 12 seconds; the Archer's shots bring an **arrow shower** down across every lane for 12 seconds; the Rogue gets 6 seconds of **flight** (hold Jump in the air) to use within 25 seconds.
+- **Rage.** The rage meter fills as you land hits, make kills and take damage. When it is full, press R to rage for 8 seconds: 1.5× damage, faster movement, a third less damage taken, and nothing staggers or knocks you down.
+- **Health bars.** An enemy's health shows above it for a moment after you hit it; the Brute and the Elite get a bar at the bottom of the screen. A hit counter at the top right counts your chain until you're hurt or stop hitting for two seconds.
 - **Parry.** A sword swing that's active when it touches a thrown axe cuts the axe out of the air.
 
 ## Enemies
@@ -143,13 +150,13 @@ js/util.js          math, AABB helpers, object Pool, the outline drawing kit
 js/data.js          ALL tuning: player feel, the three classes and their attacks, grab/magic, enemies, stage, the 10 waves
 js/audio.js         procedural WebAudio sounds + the door drone
 js/input.js         keyboard / mouse / gamepad mapped to actions (double-tap run)
-js/world.js         Stage (parallax horizon, floor, foreground) + belt-scroller movement
+js/world.js         Stage (parallax horizon, floor, foreground), ledges and power blocks, belt-scroller movement
 js/fx.js            pooled particles, slashes, rings, screen shake
 js/player.js        classes, movement, run/dash, combos, arrows, grab/knee/throw, magic, knockdown, lives, drawing
 js/enemies.js       Enemy class: per-archetype behaviour on the floor plane + outlined figures
-js/projectiles.js   pooled enemy axes (parryable), the Archer's arrows (fire, pierce, burn) and item pickups
+js/projectiles.js   pooled enemy axes (parryable), the Archer's arrows (fire, pierce, burn) and item and powerup pickups
 js/waves.js         data-driven WaveManager (required / spawned / alive / defeated)
-js/game.js          game states, camera locks, spawning, hits, magic, rest, door, HUD, ending
+js/game.js          game states, camera locks, spawning, hits, blocks, rage, magic, rest, door, HUD, ending
 ```
 
 Coordinates: every actor has `x`, a depth `z` (0 is the horizon and `DEPTH` is the front edge), and an elevation. A hit needs the boxes to overlap in x and elevation, and the two actors to be within the attack's depth tolerance.

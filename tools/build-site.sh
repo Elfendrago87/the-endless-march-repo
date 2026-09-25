@@ -9,7 +9,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-VERSIONS="v0.1.0 v0.2.0 v0.2.1 v0.3.0 v0.4.0 v0.5.0 v0.6.0"
+VERSIONS="v0.1.0 v0.2.0 v0.2.1 v0.3.0 v0.4.0 v0.5.0 v0.6.0 v0.7.0"
 rm -rf docs/play docs/downloads
 mkdir -p docs/play docs/downloads
 

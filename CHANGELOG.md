@@ -1,8 +1,41 @@
 # Changelog
 
-Every version of the game, newest first. Each version is tagged in git (`v0.1.0` … `v0.6.0`), and each has its downloads, a playable copy and a recorded demo on the Versions page of the website.
+Every version of the game, newest first. Each version is tagged in git (`v0.1.0` … `v0.7.0`), and each has its downloads, a playable copy and a recorded demo on the Versions page of the website.
 
 The game started out under the working title **SEEK** and was renamed **The Endless March: Journey to the End** in 0.4.0.
+
+---
+
+## 0.7.0 (2026-09-25): Ledges, power blocks and rage
+
+### Platforms
+- **Ledges.** Raised platforms along the whole road, drawn as outlined slabs on legs: 14 of them, three that move (two slide back and forth, one rises and sinks). Jump up through a ledge from below and land on top. A moving ledge carries whoever stands on it. Shadows fall on the ledge you're above, and a ledge fades out while you stand behind it.
+- Enemies climb up after you: walkers hop onto a ledge when you're on it and they're close. Flyers stay in the air. Thrown axes are thrown from the thrower's own height.
+- Arrows stick into ledges, and falling pickups land on them.
+- Grabs only work at the same height, and a grabbed enemy is held at your height.
+
+### Power blocks and powerups
+- **Power blocks:** 13 floating outlined blocks marked with a star. Jump into one from below, strike it with the sword or daggers, or shoot it, and it pops out its powerup, then stays behind as an empty block you can stand on. They refill every run.
+- **Heart:** +40 HP.
+- **Force field** (hexagon): a dashed bubble around you that absorbs the next 3 hits, for up to 16 seconds.
+- **Rage burst** (spiked star): fills the rage meter.
+- **Class capsule:** each class gets its own power.
+  - Warrior, **multi-lane strike**: for 12 seconds every sword hit lands in every lane.
+  - Archer, **arrow shower**: for 12 seconds every shot also brings six arrows down across every lane ahead (fire arrows bring down fire).
+  - Rogue, **flight**: 6 seconds of flight to use within 25 seconds. Hold Jump in the air to rise (well above the height of a jump) and steer freely. Outlined wings.
+- Enemies drop a random heart, force field or capsule 8% of the time; Brutes and the Elite always drop one.
+- Each pickup shows its name above you as you take it.
+
+### Rage
+- **Rage meter.** It fills as you land hits (2.5 each), make kills (8) and take damage. When it's full, the HUD flashes PRESS R (or a RAGE button appears on touch screens).
+- **Rage** (R / E / I, gamepad LB or LT): 8 seconds of 1.5× damage (arrows and the sword wave too), heavier knockback, 15% faster movement and 30% less damage taken, and hits no longer stagger you or knock you down. An outlined spiky aura shows it.
+
+### Health bars and HUD
+- Enemy health bars appear above an enemy for a few seconds after it is hit.
+- A boss bar at the bottom of the screen for the Brute and the Elite.
+- A hit counter at the top right: your chain of hits, reset when you're hurt or stop hitting for two seconds.
+- The HUD adds the rage meter and timers for the force field (with its remaining hits), the class power and the Rogue's flight fuel.
+- The pause screen lists rage, blocks and ledges.
 
 ---
 

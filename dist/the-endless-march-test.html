@@ -145,7 +145,7 @@ function detailInk(flash) { return (flash || inkFlash) ? PAPER : INK; }
 // Attacks connect when their box overlaps in x/elevation AND the two actors
 // are within the attack's depth tolerance.
 
-const GAME_VERSION = '0.6.0';
+const GAME_VERSION = '0.7.0';
 const VIEW_W = 1280;
 const VIEW_H = 720;
 const ZOOM = 1.5;          // world units -> screen pixels (final wave pulls back)
@@ -401,7 +401,61 @@ const STAGE = {
     { x: 8400, scenery: 'void' },
   ],
   door: { x: 10150, slabW: 300, slabH: 290, doorW: 110, doorH: 200 },
+
+  // Platforms: raised ledges you land on from above and jump up through.
+  // x/w along the road, z0..z1 across the depth, h = height of the top.
+  // `posts` stands it on legs; `move` makes it travel (axis 'x' or 'h').
+  platforms: [
+    { x: 290, w: 130, z0: 112, z1: 170, h: 58, posts: true },
+    { x: 1140, w: 170, z0: 26, z1: 86, h: 70, posts: true },
+    { x: 2080, w: 110, z0: 60, z1: 118, h: 80, move: { axis: 'x', range: 170, speed: 0.9 } },
+    { x: 2690, w: 90, z0: 70, z1: 130, h: 46, posts: true },
+    { x: 2790, w: 90, z0: 70, z1: 130, h: 92, posts: true },
+    { x: 3040, w: 150, z0: 18, z1: 78, h: 88, posts: true },
+    { x: 3450, w: 150, z0: 112, z1: 172, h: 88, posts: true },
+    { x: 4080, w: 210, z0: 60, z1: 138, h: 70, posts: true },
+    { x: 4940, w: 120, z0: 80, z1: 140, h: 40, move: { axis: 'h', range: 80, speed: 0.8 } },
+    { x: 6000, w: 150, z0: 18, z1: 72, h: 80, posts: true },
+    { x: 6350, w: 150, z0: 118, z1: 176, h: 80, posts: true },
+    { x: 6930, w: 120, z0: 70, z1: 130, h: 90, move: { axis: 'x', range: 250, speed: 0.7 } },
+    { x: 7780, w: 140, z0: 100, z1: 160, h: 60, posts: true },
+    { x: 8080, w: 140, z0: 30, z1: 90, h: 100, posts: true },
+  ],
+
+  // Power blocks: hit one from below (or strike it) and it gives up what it holds.
+  // `h` is the height of the block's underside.
+  blocks: [
+    { x: 540, z: 70, h: 100, item: 'power' },
+    { x: 1420, z: 140, h: 100, item: 'barrier' },
+    { x: 2480, z: 50, h: 100, item: 'heal' },
+    { x: 2860, z: 100, h: 150, item: 'rage' },
+    { x: 3300, z: 100, h: 100, item: 'power' },
+    { x: 4460, z: 40, h: 100, item: 'heal' },
+    { x: 5300, z: 150, h: 100, item: 'barrier' },
+    { x: 6200, z: 100, h: 100, item: 'power' },
+    { x: 7360, z: 60, h: 100, item: 'heal' },
+    { x: 7960, z: 130, h: 100, item: 'power' },
+    { x: 8300, z: 60, h: 140, item: 'barrier' },
+    { x: 9000, z: 95, h: 100, item: 'heal' },
+    { x: 9500, z: 95, h: 100, item: 'power' },
+  ],
 };
+
+// Powerups. The capsule gives each class its own power.
+const POWER_CFG = {
+  heal: 40,
+  barrier: { hits: 3, time: 16 },
+  multi: { time: 12 },                          // Warrior: melee hits every lane
+  shower: { time: 12, arrows: 6, dmg: 8 },      // Archer: each shot rains arrows over every lane
+  flight: { fuel: 6, maxHeight: 175, rise: 170, expire: 25 }, // Rogue: limited flight
+  dropChance: 0.08,                             // chance a fallen enemy leaves a powerup
+};
+
+// Rage: fills as you fight; unleash it (R) for stronger, unstoppable attacks.
+const POWER_NAMES = { multi: 'MULTI-LANE STRIKE', shower: 'ARROW SHOWER', flight: 'FLIGHT' };
+
+const RAGE_CFG = { max: 100, perHit: 2.5, perKill: 8, perDamage: 0.6, time: 8, dmgMul: 1.5, speedMul: 1.15, damageTaken: 0.7 };
+
 
 // ---------------------------------------------------------------- waves
 // Each wave is a list of phases; a phase is a list of [enemyType, count].
@@ -579,6 +633,14 @@ const Sound = {
   },
   wave() { this.hiss(0.45, 0.35, 400, 0.8, 'bandpass', 1800); this.tone(140, 60, 0.35, 'sine', 0.25); },
   burn() { this.hiss(0.18, 0.1, 900, 0.7, 'bandpass', 400); },
+  bump() { this.tone(180, 120, 0.1, 'square', 0.12); this.tone(90, 70, 0.12, 'sine', 0.4); },
+  powerup() {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    // a quick rising arpeggio
+    [330, 415, 494, 660].forEach((f, i) => setTimeout(() => this.tone(f, f, 0.14, 'triangle', 0.14), i * 55));
+  },
+  rage() { this.tone(70, 140, 0.6, 'sawtooth', 0.2); this.hiss(0.6, 0.4, 300, 0.6, 'lowpass', 1600); this.tone(55, 55, 0.8, 'sine', 0.5); },
   grab() { this.hiss(0.08, 0.3, 300, 1, 'lowpass'); this.tone(120, 80, 0.1, 'sine', 0.3); },
   pickup() { this.tone(880, 1320, 0.09, 'triangle', 0.09); this.tone(1320, 1760, 0.12, 'triangle', 0.06); },
   magic(level) {
@@ -655,11 +717,12 @@ const KEYMAP = {
   KeyF: 'back', KeyU: 'back',
   ShiftLeft: 'run', ShiftRight: 'run', KeyC: 'run',
   KeyV: 'magic', KeyQ: 'magic', KeyL: 'magic',
+  KeyR: 'rage', KeyE: 'rage', KeyI: 'rage',
   Escape: 'pause', KeyP: 'pause',
   Enter: 'confirm',
 };
 
-const PAD_BUTTONS = { 0: 'jump', 2: 'attack', 1: 'back', 3: 'magic', 5: 'run', 7: 'run', 9: 'pause', 12: 'up', 13: 'down' };
+const PAD_BUTTONS = { 0: 'jump', 2: 'attack', 1: 'back', 3: 'magic', 4: 'rage', 6: 'rage', 5: 'run', 7: 'run', 9: 'pause', 12: 'up', 13: 'down' };
 
 const Input = {
   keyDown: {}, padDown: {}, pressed: {}, released: {},
@@ -847,10 +910,13 @@ const TouchLayout = {
     { action: 'run', label: 'RUN', x: 986, y: 526, r: 40 },
     { action: 'magic', label: 'MAGIC', x: 1108, y: 446, r: 40 },
     { action: 'pause', label: 'II', x: 1236, y: 44, r: 26 },
+    { action: 'rage', label: 'RAGE', x: 1214, y: 346, r: 40, only: 'rageReady' }, // shown when the meter is full
   ],
+  rageReady: false,
+  shown(b) { return !b.only || this[b.only]; },
   hit(x, y) {
     if (!Input.buttonsLive) return null;
-    for (const b of this.buttons) if (Math.hypot(x - b.x, y - b.y) <= b.r + 10) return b.action;
+    for (const b of this.buttons) if (this.shown(b) && Math.hypot(x - b.x, y - b.y) <= b.r + 10) return b.action;
     return null;
   },
 };
@@ -1082,8 +1148,143 @@ class Stage {
   }
 }
 
-// Moves an actor on the floor plane; handles gravity landing and bounds.
-function moveActor(a, dt, minX, maxX, gravity) {
+// ---------------------------------------------------------------- platforms
+// Semisolid ledges: you land on them from above and jump up through them.
+// Power blocks are small platforms too (you can stand on them).
+let PLATFORMS = [];
+
+class Platform {
+  constructor(d) {
+    this.d = d;
+    this.x = d.x; this.w = d.w; this.z0 = d.z0; this.z1 = d.z1; this.h = d.h;
+    this.baseX = d.x; this.baseH = d.h;
+    this.dx = 0; this.dh = 0; this.t = 0;
+    this.block = null;
+    this.fade = 1;
+  }
+  get z() { return this.z0 - 3; }  // just behind its back edge: draw order among actors
+
+  update(dt) {
+    const m = this.d.move;
+    if (!m) { this.dx = 0; this.dh = 0; return; }
+    this.t += dt;
+    const off = Math.sin(this.t * m.speed) * m.range * 0.5;
+    const px = this.x, ph = this.h;
+    if (m.axis === 'x') this.x = this.baseX + m.range * 0.5 + off;
+    else this.h = this.baseH + m.range * 0.5 + off;
+    this.dx = this.x - px; this.dh = this.h - ph;
+  }
+
+  contains(x0, x1, z) { return x1 > this.x && x0 < this.x + this.w && z >= this.z0 - 2 && z <= this.z1 + 2; }
+
+  drawShadow(ctx) {
+    ctx.fillStyle = INK;
+    ctx.globalAlpha = 0.12;
+    ctx.fillRect(this.x + 4, FLOOR_Y + this.z0 + 4, this.w - 8, this.z1 - this.z0 - 4);
+    ctx.globalAlpha = 1;
+  }
+
+  draw(ctx) {
+    if (this.block) { this.block.draw(ctx); return; }
+    const top = FLOOR_Y - this.h, x = this.x, w = this.w;
+    ctx.save();
+    ctx.globalAlpha *= this.fade;
+    const zb = top + this.z0, zf = top + this.z1;
+    ctx.lineJoin = 'miter';
+    if (this.d.posts) {
+      // legs down to the floor at the front corners
+      limb(ctx, x + 10, zf + 12, x + 10, FLOOR_Y + this.z1, 6);
+      limb(ctx, x + w - 10, zf + 12, x + w - 10, FLOOR_Y + this.z1, 6);
+    }
+    // top face (seen from above at the road's angle) and front face
+    box(ctx, x, zb, w, zf - zb);
+    box(ctx, x, zf, w, 12);
+    // rivets on the front, a seam on the top: a little machined, a little ruined
+    ctx.fillStyle = INK;
+    for (let k = x + 8; k < x + w - 4; k += 18) ctx.fillRect(k, zf + 5, 2.5, 2.5);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x + 6, zb + (zf - zb) * 0.5); ctx.lineTo(x + w - 6, zb + (zf - zb) * 0.5);
+    ctx.stroke();
+    if (this.d.move) {
+      // chevrons show which way it travels
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      const cx = x + w / 2, cy = zf + 6;
+      if (this.d.move.axis === 'x') { ctx.moveTo(cx - 14, cy - 3); ctx.lineTo(cx - 19, cy); ctx.lineTo(cx - 14, cy + 3); ctx.moveTo(cx + 14, cy - 3); ctx.lineTo(cx + 19, cy); ctx.lineTo(cx + 14, cy + 3); }
+      else { ctx.moveTo(cx - 4, cy - 1); ctx.lineTo(cx, cy - 4); ctx.lineTo(cx + 4, cy - 1); ctx.moveTo(cx - 4, cy + 2); ctx.lineTo(cx, cy + 5); ctx.lineTo(cx + 4, cy + 2); }
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Fades out while it hides the given actor standing behind it.
+  updateFade(a, dt) {
+    const top = FLOOR_Y + this.z0 - this.h, bottom = FLOOR_Y + this.z1 - this.h + 12;
+    const feet = FLOOR_Y + a.z + a.y + a.h, head = feet - a.h;
+    const hidden = a.z < this.z0 - 3 && a.x + a.w > this.x && a.x < this.x + this.w && feet > top && head < bottom;
+    this.fade = approach(this.fade, hidden ? 0.35 : 1, dt * 4);
+  }
+}
+
+// A power block: hit it from below or strike it and it gives up its powerup.
+class PowerBlock {
+  constructor(d) {
+    this.d = d;
+    this.x = d.x - 13; this.w = 26; this.zc = d.z; this.h = d.h; this.size = 24;
+    this.used = false; this.bounce = 0; this.item = d.item;
+    this.plat = new Platform({ x: this.x, w: this.w, z0: d.z - 12, z1: d.z + 12, h: d.h + this.size });
+    this.plat.block = this;
+  }
+
+  draw(ctx) {
+    const lift = Math.sin(Math.min(1, this.bounce) * Math.PI) * 8;
+    const x = this.x, top = FLOOR_Y + this.zc - this.h - this.size - lift;
+    ctx.lineJoin = 'miter';
+    // front face and a sliver of top
+    box(ctx, x, top + 6, this.w, this.size);
+    ctx.beginPath();
+    ctx.moveTo(x, top + 6); ctx.lineTo(x + 5, top); ctx.lineTo(x + this.w + 5, top); ctx.lineTo(x + this.w, top + 6);
+    ctx.closePath();
+    finish(ctx);
+    ctx.fillStyle = INK;
+    if (!this.used) {
+      // a four-point star: something is inside
+      const cx = x + this.w / 2, cy = top + 6 + this.size / 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 8); ctx.lineTo(cx + 2.5, cy - 2.5); ctx.lineTo(cx + 8, cy); ctx.lineTo(cx + 2.5, cy + 2.5);
+      ctx.lineTo(cx, cy + 8); ctx.lineTo(cx - 2.5, cy + 2.5); ctx.lineTo(cx - 8, cy); ctx.lineTo(cx - 2.5, cy - 2.5);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      // spent: rivets only
+      ctx.fillRect(x + 4, top + 10, 2.5, 2.5); ctx.fillRect(x + this.w - 6.5, top + 10, 2.5, 2.5);
+      ctx.fillRect(x + 4, top + this.size + 1, 2.5, 2.5); ctx.fillRect(x + this.w - 6.5, top + this.size + 1, 2.5, 2.5);
+    }
+    // its shadow on the floor
+    ctx.globalAlpha = 0.18;
+    ctx.beginPath();
+    ctx.ellipse(x + this.w / 2, FLOOR_Y + this.zc, 14, 3, 0, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+// Height of the highest platform top under (x, z) that is at or below `elev`.
+function groundUnder(x0, x1, z, elev) {
+  let g = 0;
+  for (let i = 0; i < PLATFORMS.length; i++) {
+    const p = PLATFORMS[i];
+    if (p.h <= elev + 0.5 && p.h > g && p.contains(x0, x1, z)) g = p.h;
+  }
+  return g;
+}
+
+// Moves an actor on the floor plane; handles gravity, landing on the floor or
+// on a platform (and riding a moving one), and bounds.
+function moveActor(a, dt, minX, maxX, gravity, noPlatforms) {
+  // ride the platform we're standing on
+  if (a.plat && a.onGround) { a.x += a.plat.dx; a.y -= a.plat.dh; }
   if (gravity) a.vy = Math.min(a.vy + GRAVITY * dt, 1150);
   a.hitWall = 0;
   a.x += a.vx * dt;
@@ -1092,12 +1293,31 @@ function moveActor(a, dt, minX, maxX, gravity) {
   a.z += a.vz * dt;
   if (a.z < 0) { a.z = 0; if (a.vz < 0) a.vz = 0; }
   else if (a.z > DEPTH) { a.z = DEPTH; if (a.vz > 0) a.vz = 0; }
+  const prevElev = -(a.y + a.h);
   a.y += a.vy * dt;
+  const elev = -(a.y + a.h);
+  a.onGround = false;
+  a.plat = null;
+  if (!noPlatforms && a.vy >= 0) {
+    // land on the highest platform we fell onto (or are standing on)
+    let best = null;
+    for (let i = 0; i < PLATFORMS.length; i++) {
+      const p = PLATFORMS[i];
+      if (prevElev >= p.h - 1.5 && elev <= p.h && p.contains(a.x, a.x + a.w, a.z) && (!best || p.h > best.h)) best = p;
+    }
+    if (best) {
+      a.y = -best.h - a.h;
+      a.vy = 0;
+      a.onGround = true;
+      a.plat = best;
+      return;
+    }
+  }
   if (a.y + a.h >= 0) {
     a.y = -a.h;
     if (a.vy > 0) a.vy = 0;
     a.onGround = true;
-  } else a.onGround = false;
+  }
 }
 
 // Melee connection test in belt-scroller space.
@@ -1108,9 +1328,10 @@ function hitsActor(box, depthTol, attackerZ, target) {
 function drawShadow(ctx, a) {
   ctx.fillStyle = INK;
   const elev = -(a.y + a.h);
-  const k = clamp(1 - elev / 260, 0.3, 1);
+  const g = groundUnder(a.x, a.x + a.w, a.z, elev);
+  const k = clamp(1 - (elev - g) / 260, 0.3, 1);
   ctx.beginPath();
-  ctx.ellipse(a.x + a.w / 2, FLOOR_Y + a.z, (a.w * 0.6 + 6) * k, 3.2 * k, 0, 0, TAU);
+  ctx.ellipse(a.x + a.w / 2, FLOOR_Y + a.z - g, (a.w * 0.6 + 6) * k, 3.2 * k, 0, 0, TAU);
   ctx.fill();
 }
 
@@ -1374,6 +1595,21 @@ function drawFigure(ctx, P, showEye) {
     ctx.restore();
   }
 
+  // outlined wings while flying (Rogue's power)
+  if (P.wings) {
+    const f = Math.sin(P.wings * 22);
+    for (const [len, sway] of [[30, 0], [24, 0.35]]) {
+      ctx.beginPath();
+      ctx.moveTo(-2, -34);
+      ctx.lineTo(-len, -44 - f * 12 + sway * 10);
+      ctx.lineTo(-len * 0.7, -36 - f * 6);
+      ctx.lineTo(-len * 0.9, -30 - f * 4 + sway * 6);
+      ctx.lineTo(-4, -28);
+      ctx.closePath();
+      finish(ctx);
+    }
+  }
+
   // torso
   limb(ctx, 0, hipY, 2, -35, weapon === 'daggers' ? 10 : 12);
 
@@ -1601,6 +1837,10 @@ class Player {
     this.runPhase = 0; this.squash = 0; this.ghostT = 0;
     this.deathT = 0; this.reported = false;
     this.control = true; this.speedMul = 1;
+    this.rage = 0; this.rageT = 0;
+    this.barrier = 0; this.barrierT = 0;
+    this.power = null; this.powerT = 0; this.fuel = 0; this.flying = false;
+    this.plat = null;
     this.time = 0;
   }
 
@@ -1620,20 +1860,39 @@ class Player {
   // Returns true when damage was applied.
   hurt(dmg, fromX, kb, kbUp, knockdown) {
     if (!this.alive || this.invulnerable || this.g.god) return false;
-    this.releaseGrab();
-    this.hp = Math.max(0, this.hp - dmg);
     const dir = this.cx >= fromX ? 1 : -1;
+    if (this.barrier > 0) {
+      // the force field takes the blow instead
+      this.barrier--;
+      if (this.barrier <= 0) this.barrierT = 0;
+      this.invuln = 0.45;
+      FX.ring(this.cx, this.screenY - 25, 20, 60, 0.3, false, 4);
+      FX.burst(this.cx, this.screenY - 25, 10, 300, { dir: -dir, streak: true, grav: 0 });
+      FX.shake(0.08);
+      Sound.block();
+      return true;
+    }
+    const raging = this.rageT > 0;
+    if (raging) dmg *= RAGE_CFG.damageTaken;
+    this.addRage(dmg * RAGE_CFG.perDamage);
+    this.hp = Math.max(0, this.hp - dmg);
+    FX.shake(0.2 + dmg / 90);
+    FX.burst(this.cx, this.screenY - 25, 14, 380, { dir: dir, spread: 1.2 });
+    FX.ring(this.cx, this.screenY - 25, 6, 46, 0.25, false, 4);
+    Sound.hurt();
+    this.g.onPlayerHurt(dmg);
+    if (raging && this.hp > 0) {
+      // raging: the hit lands, but nothing stops you
+      this.invuln = 0.3;
+      return true;
+    }
+    this.releaseGrab();
     this.atk = null;
     this.hitActive = false;
     this.combo = 0;
     this.running = false;
     this.hitCount++;
     this.hitCountT = 1.2;
-    FX.shake(0.2 + dmg / 90);
-    FX.burst(this.cx, this.screenY - 25, 14, 380, { dir: dir, spread: 1.2 });
-    FX.ring(this.cx, this.screenY - 25, 6, 46, 0.25, false, 4);
-    Sound.hurt();
-    this.g.onPlayerHurt(dmg);
     if (this.hp <= 0) { this.die(dir); return true; }
     if (knockdown || this.hitCount >= 3) {
       this.knockDown(dir, kb || 300);
@@ -1725,8 +1984,10 @@ class Player {
         if (I.pressed.back) this.backBuf = 0.15;
         if (I.pressed.magic) this.magicBuf = 0.15;
         if (I.pressed.run && this.cls.dash) this.dashBuf = 0.12;
+        if (I.pressed.rage) this.startRage();
       }
     }
+    this.updateBuffs(dt);
 
     switch (this.state) {
       case 'normal': this.updateNormal(dt, mx, mz); break;
@@ -1760,6 +2021,19 @@ class Player {
 
     // air attacks hang for a moment
     if (this.state === 'attack' && this.atk.air && this.atkPhase !== 'recovery' && this.vy > -100) this.vy -= GRAVITY * 0.5 * dt;
+
+    // Rogue flight: hold jump in the air while the power lasts
+    this.flying = false;
+    if (this.power === 'flight' && this.fuel > 0 && !this.onGround && Input.isDown('jump') && this.control &&
+        (this.state === 'normal' || this.state === 'attack')) {
+      const F = POWER_CFG.flight;
+      const elev = -(this.y + this.h);
+      this.vy = approach(this.vy, elev < F.maxHeight ? -F.rise : 0, 3000 * dt) - GRAVITY * dt;
+      this.fuel = Math.max(0, this.fuel - dt);
+      this.flying = true;
+      this.airAttacks = 0;
+      if (Math.random() < 0.3) FX.particle(this.cx - this.facing * 10, this.screenY - 30, -this.facing * 40, rand(20, 60), 0.3, 2.5, false, 0, 2);
+    }
 
     const wasGround = this.onGround;
     const fallSpeed = this.vy;
@@ -1796,11 +2070,17 @@ class Player {
     if (mx === 0 || (this.running && mx !== this.runDir && this.runDir !== 0)) this.running = holdRun && mx !== 0;
     this.runDir = this.running ? mx : 0;
 
+    const sm = this.speedMul * (this.rageT > 0 ? RAGE_CFG.speedMul : 1);
     if (this.onGround) {
       const sx = this.running ? c.runSpeed : c.walkSpeed;
       const sz = c.depthSpeed * (this.running ? 0.5 : 1);
-      this.vx = approach(this.vx, mx * sx * this.speedMul, c.accel * dt);
-      this.vz = approach(this.vz, mz * sz * this.speedMul, c.accel * dt);
+      this.vx = approach(this.vx, mx * sx * sm, c.accel * dt);
+      this.vz = approach(this.vz, mz * sz * sm, c.accel * dt);
+      if (mx) this.facing = mx;
+    } else if (this.flying) {
+      // in flight you steer freely
+      this.vx = approach(this.vx, mx * c.walkSpeed * 1.3 * sm, 1600 * dt);
+      this.vz = approach(this.vz, mz * c.depthSpeed * sm, 1200 * dt);
       if (mx) this.facing = mx;
     } else {
       // jumps are committed, with a little steering
@@ -1938,7 +2218,7 @@ class Player {
       this.atkT -= a.startup;
       if (!a.air && this.onGround && a.lunge) this.vx = this.facing * a.lunge;
       if (a.iframes) this.invuln = Math.max(this.invuln, a.active + 0.06);
-      if (a.wave) SwordWaves.fire(this.cx + this.facing * 40, this.facing, a.wave);
+      if (a.wave) SwordWaves.fire(this.cx + this.facing * 40, this.facing, this.rageT > 0 ? Object.assign({}, a.wave, { dmg: a.wave.dmg * RAGE_CFG.dmgMul }) : a.wave);
       if (a.shot) {
         this.fireShot(a.shot);
       } else if (!a.hits) {
@@ -2008,9 +2288,66 @@ class Player {
     const vx = this.facing * Math.cos(ang) * s.speed;
     const vy = Math.sin(ang) * s.speed;
     const spread = s.spread || [0];
-    for (const dz of spread) Arrows.fire(x, this.z, y, vx, vy, dz * 2.2, s);
+    const spec = this.rageT > 0 ? Object.assign({}, s, { dmg: s.dmg * RAGE_CFG.dmgMul, knockdown: true }) : s;
+    for (const dz of spread) Arrows.fire(x, this.z, y, vx, vy, dz * 2.2, spec);
+    if (this.power === 'shower') this.arrowShower(!!s.fire);
     Sound.bow(!!s.fire);
     if (s.fire) FX.ring(x, FLOOR_Y + this.z + y, 4, 30, 0.2, false, 2);
+  }
+
+  // ------------------------------------------------ powerups and rage
+  // The Archer's power: every shot also rains arrows over every lane ahead.
+  arrowShower(fire) {
+    const S = POWER_CFG.shower;
+    const mul = this.rageT > 0 ? RAGE_CFG.dmgMul : 1;
+    const spec = { speed: 0, dmg: S.dmg * mul, kb: 150, kbUp: -150, stagger: 0.3, knockdown: false, fire: fire, pierce: false, angle: 1.38 };
+    for (let i = 0; i < S.arrows; i++) {
+      const z = clamp((i + 0.5) * DEPTH / S.arrows + rand(-8, 8), 2, DEPTH - 2);
+      const x = this.cx + this.facing * (80 + rand(0, 280));
+      Arrows.fire(x - this.facing * 60, z, -(260 + rand(0, 90)), this.facing * 110, 640 + rand(0, 80), 0, spec);
+    }
+  }
+
+  // Picking up a powerup.
+  grantPower(kind) {
+    if (kind === 'heal') {
+      this.hp = Math.min(this.maxHp, this.hp + POWER_CFG.heal);
+    } else if (kind === 'barrier') {
+      this.barrier = POWER_CFG.barrier.hits;
+      this.barrierT = POWER_CFG.barrier.time;
+    } else if (kind === 'rage') {
+      this.rage = RAGE_CFG.max;
+    } else if (kind === 'power') {
+      const k = { warrior: 'multi', archer: 'shower', rogue: 'flight' }[this.cls.key];
+      this.power = k;
+      if (k === 'flight') { this.fuel = POWER_CFG.flight.fuel; this.powerT = POWER_CFG.flight.expire; }
+      else this.powerT = POWER_CFG[k].time;
+    }
+  }
+
+  addRage(n) {
+    if (this.rageT > 0 || !this.alive) return;
+    this.rage = Math.min(RAGE_CFG.max, this.rage + n);
+  }
+
+  startRage() {
+    if (this.rage < RAGE_CFG.max || this.rageT > 0 || !this.alive) return;
+    this.rage = 0;
+    this.rageT = RAGE_CFG.time;
+    FX.ring(this.cx, this.screenY - 25, 10, 140, 0.5, false, 6);
+    FX.burst(this.cx, this.screenY - 25, 24, 520, { streak: true, grav: 0 });
+    FX.shake(0.3);
+    Sound.rage();
+    this.g.hitstop(0.08);
+  }
+
+  updateBuffs(dt) {
+    if (this.rageT > 0) this.rageT -= dt;
+    if (this.barrierT > 0) { this.barrierT -= dt; if (this.barrierT <= 0) this.barrier = 0; }
+    if (this.power) {
+      this.powerT -= dt;
+      if (this.powerT <= 0 || (this.power === 'flight' && this.fuel <= 0 && this.onGround)) { this.power = null; this.fuel = 0; }
+    }
   }
 
   // ------------------------------------------------ grab / knee / throw
@@ -2032,7 +2369,7 @@ class Player {
     this.vx = 0; this.vz = 0;
     e.x = this.cx + this.facing * 20 - e.w / 2;
     e.z = this.z;
-    e.y = -e.h;
+    e.y = this.bottom - e.h;
     e.facing = -this.facing;
     this.kneeT -= dt;
     if (this.atkBuf > 0 && this.kneeT <= 0 && this.knees < G.knees) {
@@ -2172,8 +2509,49 @@ class Player {
     this.computePose();
     const blink = (this.invuln > 0 && this.state !== 'dash' && !(this.atk && this.atk.iframes)) || this.state === 'getup';
     if (blink && this.state !== 'magic' && Math.floor(this.time * 18) % 2 === 0) ctx.globalAlpha = 0.35;
+    if (this.rageT > 0) this.drawRageAura(ctx);
+    this.pose.wings = this.power === 'flight' && (this.flying || !this.onGround) ? this.time : 0;
     drawFigure(ctx, this.pose, true);
+    if (this.barrier > 0) this.drawBarrier(ctx);
     ctx.globalAlpha = 1;
+  }
+
+  // Jagged ink spikes around the figure while raging.
+  drawRageAura(ctx) {
+    const x = this.cx, y = this.screenY - 26, n = 14;
+    const k = Math.min(1, this.rageT);
+    ctx.save();
+    ctx.globalAlpha = 0.85 * k;
+    ctx.beginPath();
+    for (let i = 0; i <= n * 2; i++) {
+      const a = (i / (n * 2)) * TAU + this.time * 1.5;
+      const r = (i % 2 === 0 ? 40 : 28) + Math.sin(this.time * 30 + i * 1.7) * 4;
+      ctx.lineTo(x + Math.cos(a) * r * 0.8, y + Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.lineJoin = 'miter';
+    finish(ctx);
+    ctx.restore();
+  }
+
+  // The force field: an outlined bubble with one ring per hit it can still take.
+  drawBarrier(ctx) {
+    const x = this.cx, y = this.screenY - 26;
+    const fade = this.barrierT < 2 && Math.floor(this.time * 10) % 2 === 0 ? 0.3 : 1;
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
+    for (let i = 0; i < this.barrier; i++) {
+      const r = 36 + i * 5;
+      ctx.setLineDash(i === 0 ? [] : [6, 5]);
+      ctx.lineDashOffset = this.time * (i % 2 ? 30 : -30);
+      ctx.beginPath();
+      ctx.ellipse(x, y, r * 0.8, r, 0, 0, TAU);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.restore();
   }
 
   // What is left behind where the hero fell.
@@ -2265,7 +2643,7 @@ class Enemy {
   constructor() {
     this.active = false;
     this.atkBox = Rect();
-    this.aim = { x: 0, z: 0 };
+    this.aim = { x: 0, z: 0, b: 0 };
   }
 
   reset(type, x, z, opts) {
@@ -2297,6 +2675,7 @@ class Enemy {
     this.ringOff = rand(0, 70); this.zOff = rand(-60, 60); this.rerollT = rand(1.5, 3);
     this.thrownBy = null; this.fleeing = false;
     this.burnT = 0; this.burnTick = 0; this.lastArrowId = -1; this.lastWaveId = -1;
+    this.jumpCd = rand(0.5, 1.5); this.hpShowT = 0; this.plat = null;
     this.active = true;
     return this;
   }
@@ -2330,8 +2709,21 @@ class Enemy {
 
   // Walking in, enemies may be off-screen; once in the fight they stay on it.
   physics(dt, g, gravity) {
-    if (this.state === 'enter') moveActor(this, dt, g.enemyMinX, g.enemyMaxX, gravity);
-    else moveActor(this, dt, g.fightMinX, g.fightMaxX, gravity);
+    // flyers only touch platforms when they come down to rest
+    const noPlat = this.behavior === 'flyer' && this.state !== 'recover';
+    if (this.state === 'enter') moveActor(this, dt, g.enemyMinX, g.enemyMaxX, gravity, noPlat);
+    else moveActor(this, dt, g.fightMinX, g.fightMaxX, gravity, noPlat);
+  }
+
+  // Ground fighters jump up after a player standing on a platform.
+  climb(p, adx, dz) {
+    if (this.c.big || this.behavior === 'shield' || !this.onGround || this.jumpCd > 0) return;
+    const above = -(p.y + p.h) - -(this.y + this.h);
+    if (above > 25 && above < 130 && adx < 120 && Math.abs(dz) < 30) {
+      this.vy = -Math.sqrt(2 * GRAVITY * (above + 30));
+      this.jumpCd = 1.6;
+      this.onGround = false;
+    }
   }
   friction(dt, amt) {
     this.vx = approach(this.vx, 0, (amt || 1800) * dt);
@@ -2380,7 +2772,7 @@ class Enemy {
       this.vx = 0; this.vz = 0; this.vy = 0;
     }
     if (this.flashT > 0) this.flashT -= dt;
-    this.cd -= dt; this.poiseCd -= dt;
+    this.cd -= dt; this.poiseCd -= dt; this.jumpCd -= dt; this.hpShowT -= dt;
     this.rerollT -= dt;
     if (this.rerollT <= 0) { this.rerollT = rand(1.5, 3); this.zOff = rand(-60, 60); this.ringOff = rand(0, 70); }
 
@@ -2489,6 +2881,7 @@ class Enemy {
         if (this.t > 0.25) this.setState('approach');
         break;
       case 'approach':
+        this.climb(p, adx, dz);
         if (this.wantToken(g)) {
           const side = this.cx < p.cx ? -1 : 1;
           this.steer(p.cx + side * c.range * 0.7, p.z, 1, dt);
@@ -2539,6 +2932,7 @@ class Enemy {
         if (this.t > 0.15) this.setState('approach');
         break;
       case 'approach':
+        this.climb(p, adx, dz);
         if (this.wantToken(g)) {
           const side = this.cx < p.cx ? -1 : 1;
           this.steer(p.cx + side * 160, p.z, 1, dt);
@@ -2596,7 +2990,7 @@ class Enemy {
         this.facing = dir;
         this.friction(dt, 2000);
         if (this.t >= c.windup) {
-          Projectiles.fire(this.cx + this.facing * 16, this.z, -27, this.facing * c.projSpeed, 0, c.dmg, c.kb, 7, true);
+          Projectiles.fire(this.cx + this.facing * 16, this.z, this.bottom - 27, this.facing * c.projSpeed, 0, c.dmg, c.kb, 7, true);
           this.vx = -this.facing * 90;
           Sound.shoot();
           this.setState('recover');
@@ -2635,9 +3029,9 @@ class Enemy {
         this.friction(dt, 1200);
         this.vy = approach(this.vy, -40, 800 * dt);
         this.physics(dt, g, false);
-        this.aim.x = p.cx; this.aim.z = p.z;
+        this.aim.x = p.cx; this.aim.z = p.z; this.aim.b = p.bottom;
         if (this.t >= c.windup) {
-          const ax = this.aim.x - this.cx, az = this.aim.z - this.z, ay = -this.bottom;
+          const ax = this.aim.x - this.cx, az = this.aim.z - this.z, ay = this.aim.b - this.bottom;
           const len = Math.hypot(ax, az, ay) || 1;
           this.setState('dive');
           this.vx = ax / len * c.diveSpeed;
@@ -2867,7 +3261,7 @@ class Enemy {
     if (this.move === 'volley') {
       // three axes fanned out across the depth of the floor
       for (let i = -1; i <= 1; i++) {
-        Projectiles.fire(this.cx + this.facing * 20, this.z, -44, this.facing * m.speed, i * 70, m.dmg, m.kb, 8, true);
+        Projectiles.fire(this.cx + this.facing * 20, this.z, this.bottom - 44, this.facing * m.speed, i * 70, m.dmg, m.kb, 8, true);
       }
       Sound.shoot();
       this.recDur = m.recovery;
@@ -2933,8 +3327,10 @@ class Enemy {
     }
     this.hp -= atk.dmg * (c.dmgTaken || 1);
     this.flashT = 0.1;
+    this.hpShowT = 2.5;
     if (this.behavior === 'assassin') this.alpha = 1;
     this.releaseToken();
+    if (g.onEnemyHit) g.onEnemyHit(this, atk);
     const res = atk.magic ? 0 : (c.kbResist || 0);
     if (this.hp <= 0) { this.die(dir, atk.kb, g); return 'hit'; }
 
@@ -3060,6 +3456,20 @@ class Enemy {
     }
     inkFlash = false;
     ctx.restore();
+
+    // health bar for a while after being hit
+    if (this.hpShowT > 0 && !this.dying && this.behavior !== 'thief' && alpha > 0.3) {
+      const w = this.c.big ? 44 : 30, bx = this.cx - w / 2, by = this.screenY - this.h - (this.c.big ? 30 : 16);
+      ctx.globalAlpha = Math.min(1, this.hpShowT * 2) * alpha;
+      ctx.fillStyle = PAPER;
+      ctx.fillRect(bx, by, w, 5);
+      ctx.fillStyle = INK;
+      ctx.fillRect(bx, by, w * clamp(this.hp / this.maxHp, 0, 1), 5);
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(bx, by, w, 5);
+      ctx.globalAlpha = 1;
+    }
 
     // set alight by a fire arrow
     if (this.burnT > 0 && alpha > 0.1) {
@@ -3523,16 +3933,22 @@ const Projectiles = {
   },
 };
 
+const POWER_KINDS = { heal: 1, barrier: 1, power: 1, rage: 1 };
+
 const Items = {
-  pool: new Pool(() => ({ active: false, kind: 'pot', x: 0, z: 0, y: 0, vx: 0, vy: 0, t: 0 }), 24),
+  pool: new Pool(() => ({ active: false, isItem: true, kind: 'pot', x: 0, z: 0, y: 0, vx: 0, vy: 0, t: 0, ground: 0 }), 24),
 
   clear() { this.pool.clear(); },
 
-  drop(kind, x, z) {
+  // `elev` drops it from a height (a power block's top); `exact` keeps its lane.
+  drop(kind, x, z, elev, exact) {
     const it = this.pool.obtain();
     if (!it) return;
-    it.active = true; it.kind = kind; it.x = x; it.z = clamp(z + rand(-12, 12), 4, DEPTH - 4);
-    it.y = -20; it.vx = rand(-90, 90); it.vy = -260; it.t = 0;
+    it.active = true; it.kind = kind; it.x = x;
+    it.z = exact ? z : clamp(z + rand(-12, 12), 4, DEPTH - 4);
+    it.y = -(elev || 0) - 20; it.t = 0; it.ground = 0;
+    if (exact) { it.vx = (Math.random() < 0.5 ? -1 : 1) * rand(50, 70); it.vy = -420; }
+    else { it.vx = rand(-90, 90); it.vy = -260; }
   },
 
   update(dt, g) {
@@ -3540,60 +3956,154 @@ const Items = {
     for (const it of this.pool.items) {
       if (!it.active) continue;
       it.t += dt;
-      if (it.y < 0 || it.vy < 0) {
+      // fall onto the floor or a ledge (and ride a moving ledge)
+      it.ground = groundUnder(it.x - 6, it.x + 6, it.z, -it.y);
+      if (it.y < -it.ground - 0.5 || it.vy < 0) {
         it.vy += GRAVITY * 0.7 * dt;
         it.y += it.vy * dt;
         it.x += it.vx * dt;
-        if (it.y >= 0) { it.y = 0; it.vy = it.vy > 200 ? -it.vy * 0.3 : 0; it.vx *= 0.5; }
-      }
-      if (it.t > 14) { it.active = false; continue; }
-      if (pl.alive && pl.onGround && it.t > 0.3 && Math.abs(it.x - pl.cx) < 22 && Math.abs(it.z - pl.z) < 14) {
+        if (it.y >= -it.ground) { it.y = -it.ground; it.vy = it.vy > 200 ? -it.vy * 0.3 : 0; it.vx *= 0.5; }
+      } else it.y = -it.ground;
+      const life = POWER_KINDS[it.kind] ? 20 : 14;
+      if (it.t > life) { it.active = false; continue; }
+      if (pl.alive && it.t > 0.3 && Math.abs(it.x - pl.cx) < 22 && Math.abs(it.z - pl.z) < 14 && Math.abs(pl.bottom - it.y) < 26) {
         it.active = false;
-        g.pickUp(it.kind, it.x, it.z);
+        g.pickUp(it.kind, it.x, it.z, -it.y);
       }
     }
   },
 
-  draw(ctx) {
-    ctx.lineJoin = 'round';
+  // Shadows first, bodies in the depth-sorted draw list.
+  drawShadows(ctx) {
+    ctx.fillStyle = INK;
     for (const it of this.pool.items) {
       if (!it.active) continue;
-      if (it.t > 11 && Math.floor(it.t * 10) % 2 === 0) continue; // about to vanish
-      const x = it.x, fy = FLOOR_Y + it.z;
-      ctx.fillStyle = INK;
       ctx.beginPath();
-      ctx.ellipse(x, fy, 8, 2, 0, 0, TAU);
+      ctx.ellipse(it.x, FLOOR_Y + it.z - it.ground, 8, 2, 0, 0, TAU);
       ctx.fill();
-      const y = fy + it.y - Math.abs(Math.sin(it.t * 4)) * 2;
-      if (it.kind === 'pot') {
-        // a small flask: one outline for neck and bowl, a cork on top
-        ctx.beginPath();
-        ctx.moveTo(x - 2.5, y - 13);
-        ctx.lineTo(x - 2.5, y - 18);
-        ctx.lineTo(x + 2.5, y - 18);
-        ctx.lineTo(x + 2.5, y - 13);
-        ctx.arc(x, y - 7, 7, -Math.PI / 2 + 0.37, Math.PI * 1.5 - 0.37);
-        ctx.closePath();
-        finish(ctx);
-        box(ctx, x - 4, y - 21, 8, 3);
-        ctx.lineWidth = 1.2;
-        ctx.beginPath();
-        ctx.moveTo(x - 5, y - 6); ctx.lineTo(x + 5, y - 6);
-        ctx.stroke();
-      } else {
-        // a loaf of bread with scored top
-        ctx.beginPath();
-        ctx.ellipse(x, y - 6, 11, 7, 0, Math.PI, 0);
-        ctx.lineTo(x + 11, y - 1);
-        ctx.lineTo(x - 11, y - 1);
-        ctx.closePath();
-        finish(ctx);
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(x - 4, y - 11); ctx.lineTo(x - 2, y - 6);
-        ctx.moveTo(x + 2, y - 11); ctx.lineTo(x + 4, y - 6);
-        ctx.stroke();
+    }
+  },
+
+  draw(ctx, it) {
+    const life = POWER_KINDS[it.kind] ? 20 : 14;
+    if (it.t > life - 3 && Math.floor(it.t * 10) % 2 === 0) return; // about to vanish
+    ctx.lineJoin = 'round';
+    const x = it.x;
+    const y = FLOOR_Y + it.z + it.y - Math.abs(Math.sin(it.t * 4)) * 2;
+    if (POWER_KINDS[it.kind]) { this.drawPower(ctx, it, x, y); return; }
+    if (it.kind === 'pot') {
+      // a small flask: one outline for neck and bowl, a cork on top
+      ctx.beginPath();
+      ctx.moveTo(x - 2.5, y - 13);
+      ctx.lineTo(x - 2.5, y - 18);
+      ctx.lineTo(x + 2.5, y - 18);
+      ctx.lineTo(x + 2.5, y - 13);
+      ctx.arc(x, y - 7, 7, -Math.PI / 2 + 0.37, Math.PI * 1.5 - 0.37);
+      ctx.closePath();
+      finish(ctx);
+      box(ctx, x - 4, y - 21, 8, 3);
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(x - 5, y - 6); ctx.lineTo(x + 5, y - 6);
+      ctx.stroke();
+    } else {
+      // a loaf of bread with scored top
+      ctx.beginPath();
+      ctx.ellipse(x, y - 6, 11, 7, 0, Math.PI, 0);
+      ctx.lineTo(x + 11, y - 1);
+      ctx.lineTo(x - 11, y - 1);
+      ctx.closePath();
+      finish(ctx);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x - 4, y - 11); ctx.lineTo(x - 2, y - 6);
+      ctx.moveTo(x + 2, y - 11); ctx.lineTo(x + 4, y - 6);
+      ctx.stroke();
+    }
+  },
+
+  // Powerups: outlined shapes that bob and glint.
+  drawPower(ctx, it, x, y) {
+    const cy = y - 13 - Math.sin(it.t * 3) * 2;
+    ctx.fillStyle = INK;
+    ctx.strokeStyle = INK;
+    // a glint that turns around it
+    const ga = it.t * 3;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let k = 0; k < 4; k++) {
+      const a = ga + k * Math.PI / 2;
+      ctx.moveTo(x + Math.cos(a) * 15, cy + Math.sin(a) * 15);
+      ctx.lineTo(x + Math.cos(a) * 19, cy + Math.sin(a) * 19);
+    }
+    ctx.stroke();
+    if (it.kind === 'heal') {
+      // a heart
+      ctx.beginPath();
+      ctx.moveTo(x, cy + 9);
+      ctx.bezierCurveTo(x - 14, cy - 1, x - 9, cy - 13, x, cy - 5);
+      ctx.bezierCurveTo(x + 9, cy - 13, x + 14, cy - 1, x, cy + 9);
+      ctx.closePath();
+      finish(ctx);
+      ctx.fillStyle = INK;
+      ctx.fillRect(x - 1.5, cy - 4, 3, 8); ctx.fillRect(x - 4, cy - 1.5, 8, 3);
+    } else if (it.kind === 'barrier') {
+      // a hexagonal force-field bubble
+      ctx.beginPath();
+      for (let k = 0; k < 6; k++) {
+        const a = k * Math.PI / 3 + Math.PI / 6;
+        const px = x + Math.cos(a) * 11, py = cy + Math.sin(a) * 11;
+        if (k) ctx.lineTo(px, py); else ctx.moveTo(px, py);
       }
+      ctx.closePath();
+      finish(ctx);
+      ctx.fillStyle = INK;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(x, cy, 6, 0, TAU);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(x - 2, cy - 2, 2, 0, TAU);
+      ctx.fill();
+    } else if (it.kind === 'rage') {
+      // a spiked burst
+      ctx.beginPath();
+      for (let k = 0; k < 16; k++) {
+        const a = k * Math.PI / 8 + it.t;
+        const r = k % 2 ? 6 : 12;
+        const px = x + Math.cos(a) * r, py = cy + Math.sin(a) * r;
+        if (k) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+      }
+      ctx.closePath();
+      finish(ctx);
+      ctx.fillStyle = INK;
+      ctx.beginPath(); ctx.arc(x, cy, 2.5, 0, TAU); ctx.fill();
+    } else {
+      // the class capsule: a pill with the class's sign on it
+      ctx.beginPath();
+      ctx.moveTo(x - 7, cy - 7); ctx.lineTo(x + 7, cy - 7);
+      ctx.arc(x + 7, cy, 7, -Math.PI / 2, Math.PI / 2);
+      ctx.lineTo(x - 7, cy + 7);
+      ctx.arc(x - 7, cy, 7, Math.PI / 2, Math.PI * 1.5);
+      ctx.closePath();
+      finish(ctx);
+      ctx.fillStyle = INK;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      const k = typeof SEEK !== 'undefined' && SEEK.player ? SEEK.player.cls.key : 'warrior';
+      if (k === 'archer') {
+        // three falling arrows
+        for (let i = -1; i <= 1; i++) { ctx.moveTo(x + i * 5, cy - 4); ctx.lineTo(x + i * 5, cy + 4); ctx.moveTo(x + i * 5 - 2, cy + 1.5); ctx.lineTo(x + i * 5, cy + 4); ctx.lineTo(x + i * 5 + 2, cy + 1.5); }
+      } else if (k === 'rogue') {
+        // a wing
+        ctx.moveTo(x - 8, cy + 3); ctx.quadraticCurveTo(x - 2, cy - 7, x + 9, cy - 4);
+        ctx.moveTo(x - 5, cy + 3); ctx.lineTo(x + 7, cy - 1); ctx.moveTo(x - 2, cy + 3); ctx.lineTo(x + 5, cy + 2);
+      } else {
+        // three stacked lanes with a slash across
+        for (let i = -1; i <= 1; i++) { ctx.moveTo(x - 9, cy + i * 4); ctx.lineTo(x + 9, cy + i * 4); }
+        ctx.moveTo(x - 5, cy + 6); ctx.lineTo(x + 5, cy - 6);
+      }
+      ctx.stroke();
     }
   },
 };
@@ -3636,16 +4146,18 @@ const Arrows = {
       if (a.spec.fire && Math.random() < 0.6) {
         FX.particle(a.x - sign(a.vx) * 10, FLOOR_Y + a.z + a.y, -a.vx * 0.05, -rand(30, 90), rand(0.2, 0.4), rand(2, 3.5), false, -80, 2);
       }
-      if (a.y >= -2) {
-        // into the ground: it stays there a moment
-        a.y = -2;
+      const gr = a.vy > 0 ? groundUnder(a.x - 1, a.x + 1, a.z, -a.y + 14) : 0;
+      if (a.y >= -gr - 2) {
+        // into the ground (or a ledge): it stays there a moment
+        a.y = -gr - 2;
         a.stuck = 0.9;
-        FX.dust(a.x, FLOOR_Y + a.z, 3);
+        FX.dust(a.x, FLOOR_Y + a.z - gr, 3);
         continue;
       }
       if (a.life <= 0 || a.y < -600 || a.x < g.cam.x - 60 || a.x > g.cam.x + g.viewW + 60) { a.active = false; continue; }
       const dir = sign(a.vx) || 1;
       const tipX = a.x + dir * 10;
+      if (g.strikeBlock(tipX - 2, tipX + 2, a.z, a.y, a.y)) { a.active = false; continue; }
       for (const e of g.enemies) {
         if (!e.active || e.untouchable || e.lastArrowId === a.id) continue;
         if (Math.abs(e.z - a.z) > LANE) continue;
@@ -3883,6 +4395,9 @@ class Game {
     this.drawList = [];
     this.thiefTimers = [];
     this.spawnSide = 1;
+    this.blocks = [];
+    this.popups = [];
+    this.chain = 0; this.chainT = 0; this.bestChain = 0;
 
     const q = new URLSearchParams(location.search);
     this.debug = q.has('debug') || !!window.SEEK_TEST_BUILD;
@@ -3993,6 +4508,15 @@ class Game {
     this.thiefTimers.length = 0;
     this.slowT = 0;
     this.fadeIn = 1;
+    this.buildPlatforms();
+    this.popups.length = 0;
+    this.chain = 0; this.chainT = 0;
+  }
+
+  // Ledges and power blocks are rebuilt for every run, so blocks refill.
+  buildPlatforms() {
+    this.blocks = STAGE.blocks.map((d) => new PowerBlock(d));
+    PLATFORMS = STAGE.platforms.map((d) => new Platform(d)).concat(this.blocks.map((b) => b.plat));
   }
 
   toTitle() {
@@ -4177,7 +4701,13 @@ class Game {
   }
 
   updateWorld(dt) {
+    for (let i = 0; i < PLATFORMS.length; i++) { PLATFORMS[i].update(dt); PLATFORMS[i].updateFade(this.player, dt); }
+    const headBefore = -this.player.y;
     this.player.update(dt);
+    this.updateBlocks(dt, headBefore);
+    this.updatePopups(dt);
+    if (this.chainT > 0) { this.chainT -= dt; if (this.chainT <= 0) this.chain = 0; }
+    TouchLayout.rageReady = this.player.rage >= RAGE_CFG.max && this.player.rageT <= 0;
     if (this.magic) {
       // the world holds its breath while the spell is cast
       this.updateMagic(dt);
@@ -4227,13 +4757,19 @@ class Game {
   resolvePlayerHits() {
     const p = this.player;
     if (!p.hitActive) return;
-    const a = p.atk, hb = p.hitBox;
+    let a = p.atk;
+    const hb = p.hitBox;
+    // a sword strike can open a power block
+    if (this.strikeBlock(hb.x, hb.x + hb.w, p.z, hb.y, hb.y + hb.h, p.attackId)) FX.shake(0.05);
+    const multi = p.power === 'multi';
+    if (p.rageT > 0) a = Object.assign({}, a, { dmg: a.dmg * RAGE_CFG.dmgMul, kb: a.kb * 1.2 });
+    const depth = multi ? DEPTH : a.depth;
     let hits = 0, blocked = false;
     const E = this.enemies;
     for (let i = 0; i < E.length; i++) {
       const e = E[i];
       if (!e.active || e.lastHitId === p.attackId) continue;
-      if (!hitsActor(hb, a.depth, p.z, e)) continue;
+      if (!hitsActor(hb, depth, p.z, e)) continue;
       e.lastHitId = p.attackId;
       const ix = (Math.max(hb.x, e.x) + Math.min(hb.x + hb.w, e.x + e.w)) / 2;
       const iy = FLOOR_Y + e.z + (Math.max(hb.y, e.y) + Math.min(hb.y + hb.h, e.y + e.h)) / 2;
@@ -4251,6 +4787,11 @@ class Game {
       }
     }
     if (hits > 0) {
+      if (multi && p.multiFx !== p.attackId) {
+        // the strike echoes down every lane
+        p.multiFx = p.attackId;
+        for (let z = 20; z < DEPTH; z += 50) FX.ring(p.cx + p.facing * 50, FLOOR_Y + z + p.bottom - 30, 4, 34, 0.18, false, 2);
+      }
       this.hitstop(a.hitstop);
       FX.shake(a.shake);
       Sound.hit(!!a.heavy);
@@ -4269,7 +4810,7 @@ class Game {
     for (const e of this.enemies) {
       if (!e.active || e.untouchable || e.c.noGrab || e.c.big || !e.onGround || !OK[e.state]) continue;
       const dx = e.cx - p.cx, adx = Math.abs(dx);
-      if (adx > GRAB_CFG.range || Math.abs(e.z - p.z) > GRAB_CFG.depth) continue;
+      if (adx > GRAB_CFG.range || Math.abs(e.z - p.z) > GRAB_CFG.depth || Math.abs(e.bottom - p.bottom) > 10) continue;
       if (adx > 8 && sign(dx) !== p.facing) continue;
       if (adx < bd) { bd = adx; best = e; }
     }
@@ -4459,12 +5000,91 @@ class Game {
     Sound.pickup();
   }
 
-  pickUp(kind, x, z) {
+  pickUp(kind, x, z, elev) {
     const p = this.player;
-    if (kind === 'pot') p.pots = Math.min(PLAYER_CFG.maxPots, p.pots + 1);
-    else p.hp = Math.min(p.maxHp, p.hp + PLAYER_CFG.foodHeal);
-    FX.ring(x, FLOOR_Y + z - 10, 4, 36, 0.3, false, 2);
-    Sound.pickup();
+    const y = FLOOR_Y + z - (elev || 0) - 10;
+    if (kind === 'pot' || kind === 'food') {
+      if (kind === 'pot') p.pots = Math.min(PLAYER_CFG.maxPots, p.pots + 1);
+      else p.hp = Math.min(p.maxHp, p.hp + PLAYER_CFG.foodHeal);
+      FX.ring(x, y, 4, 36, 0.3, false, 2);
+      Sound.pickup();
+      return;
+    }
+    p.grantPower(kind);
+    const label = kind === 'heal' ? '+' + POWER_CFG.heal + ' HP' : kind === 'barrier' ? 'FORCE FIELD' : kind === 'rage' ? 'RAGE FULL' : POWER_NAMES[p.power];
+    this.popup(label, p.cx, p.screenY - p.h - 18);
+    FX.ring(p.cx, p.screenY - 25, 6, 70, 0.4, false, 3);
+    FX.burst(p.cx, p.screenY - 25, 14, 300, { up: 1.0, streak: true, grav: 200 });
+    Sound.powerup();
+  }
+
+  // ------------------------------------------------------------ blocks, rage, chains
+  // Hit from below: the head meets a block's underside while rising.
+  updateBlocks(dt, headBefore) {
+    const p = this.player;
+    for (const b of this.blocks) {
+      if (b.bounce > 0) b.bounce = Math.max(0, b.bounce - dt * 5);
+      if (!p.alive || p.vy > 0 || Math.abs(p.z - b.zc) > 14) continue;
+      if (p.x + p.w <= b.x + 2 || p.x >= b.x + b.w - 2) continue;
+      const head = -p.y;
+      if (headBefore <= b.h + 0.5 && head > b.h) {
+        p.y = -b.h;
+        p.vy = 80;
+        this.bumpBlock(b);
+      }
+    }
+  }
+
+  // A strike (sword box, arrow tip) that overlaps a block opens it. y is body space.
+  strikeBlock(x0, x1, z, y0, y1, id) {
+    for (const b of this.blocks) {
+      if (Math.abs(z - b.zc) > LANE || x1 <= b.x || x0 >= b.x + b.w) continue;
+      if (y1 < -(b.h + b.size) || y0 > -b.h) continue;
+      if (id !== undefined) { if (b.lastHitId === id) continue; b.lastHitId = id; }
+      this.bumpBlock(b);
+      return true;
+    }
+    return false;
+  }
+
+  bumpBlock(b) {
+    b.bounce = 1;
+    Sound.bump();
+    const x = b.x + b.w / 2, y = FLOOR_Y + b.zc - b.h - b.size / 2;
+    FX.burst(x, y, 6, 200, { up: 1.0, streak: true, grav: 500 });
+    if (b.used) return;
+    b.used = true;
+    Items.drop(b.item, x, b.zc, b.h + b.size, true);
+    FX.ring(x, y, 6, 50, 0.3, false, 3);
+  }
+
+  onEnemyHit(e, atk) {
+    if (atk.magic) return;
+    this.player.addRage(RAGE_CFG.perHit);
+    this.chain++;
+    this.chainT = 2.2;
+    this.bestChain = Math.max(this.bestChain, this.chain);
+  }
+
+  popup(text, x, y) {
+    this.popups.push({ text, x, y, t: 0 });
+  }
+
+  updatePopups(dt) {
+    for (let i = this.popups.length - 1; i >= 0; i--) {
+      const q = this.popups[i];
+      q.t += dt;
+      q.y -= 30 * dt;
+      if (q.t > 1.4) this.popups.splice(i, 1);
+    }
+  }
+
+  drawPopups(ctx) {
+    for (const q of this.popups) {
+      ctx.globalAlpha = clamp(1.4 - q.t, 0, 1);
+      this.text(q.text, q.x, q.y, 13, { weight: 700, spacing: 3, align: 'center' });
+    }
+    ctx.globalAlpha = 1;
   }
 
   // ------------------------------------------------------------ spawning
@@ -4507,6 +5127,11 @@ class Game {
     FX.shake(big ? 0.3 : 0.1);
     Sound.enemyDie(big);
     this.waves.onDefeated();
+    this.player.addRage(RAGE_CFG.perKill);
+    if (big || Math.random() < POWER_CFG.dropChance) {
+      const kinds = ['heal', 'barrier', 'power'];
+      Items.drop(kinds[Math.floor(Math.random() * kinds.length)], x, e.z, Math.max(0, -e.bottom));
+    }
     const split = e.c.split;
     if (split) {
       for (let i = 0; i < split.count; i++) {
@@ -4523,7 +5148,7 @@ class Game {
     }
   }
 
-  onPlayerHurt() { this.hurtFlash = 1; this.hitstop(0.06); }
+  onPlayerHurt() { this.hurtFlash = 1; this.hitstop(0.06); this.chain = 0; this.chainT = 0; }
 
   // The player's fall animation has finished: spend a life or end the run.
   onPlayerFallen() {
@@ -4709,16 +5334,29 @@ class Game {
     ctx.globalAlpha = 1;
     Projectiles.drawShadows(ctx);
     Arrows.drawShadows(ctx);
-    Items.draw(ctx);
+    Items.drawShadows(ctx);
+    const x0 = c.x - 220, x1 = c.x + vw + 220;
+    for (let i = 0; i < PLATFORMS.length; i++) {
+      const pl = PLATFORMS[i];
+      if (!pl.block && pl.x + pl.w > x0 && pl.x < x1) pl.drawShadow(ctx);
+    }
 
-    // actors, back to front
+    // ledges, pickups and actors, back to front
     const list = this.drawList;
     list.length = 0;
     list.push(p);
     for (let i = 0; i < E.length; i++) if (E[i].active) list.push(E[i]);
+    for (let i = 0; i < PLATFORMS.length; i++) {
+      const pl = PLATFORMS[i];
+      if (pl.x + pl.w > x0 && pl.x < x1) list.push(pl);
+    }
+    for (const it of Items.pool.items) if (it.active) list.push(it);
     list.sort((a, b) => a.z - b.z);
     for (let i = 0; i < list.length; i++) {
-      if (list[i] === p) p.draw(ctx); else list[i].draw(ctx, this);
+      const o = list[i];
+      if (o === p) p.draw(ctx);
+      else if (o.isItem) Items.draw(ctx, o);
+      else o.draw(ctx, this);
     }
 
     Projectiles.draw(ctx);
@@ -4726,6 +5364,7 @@ class Game {
     SwordWaves.draw(ctx);
     this.drawMagic(ctx);
     FX.drawFront(ctx);
+    this.drawPopups(ctx);
     if (doorShown) this.drawDoorLight(ctx);
     this.stage.drawFront(ctx, c.x, vw, c.y + VIEW_H / z);
     ctx.restore();
@@ -4921,10 +5560,39 @@ class Game {
       else { ctx.beginPath(); ctx.arc(px, py - 4, 4.5, 0, TAU); ctx.stroke(); }
     }
 
+    // rage: fills as you hit, kill and get hurt; full, it can be unleashed
+    const rw = blocks * (bw + gap) - gap, ry = y + 70;
+    const full = p.rage >= RAGE_CFG.max && p.rageT <= 0;
+    const flash = full && Math.floor(this.time * 6) % 2 === 0;
+    this.text('RAGE', x, y + 78, 12, { weight: 700, spacing: 2 });
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx0 + 0.5, ry + 0.5, rw - 1, 9);
+    if (p.rageT > 0) {
+      // unleashed: the bar drains, striped
+      const f = p.rageT / RAGE_CFG.time;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(bx0, ry, rw * f, 10); ctx.clip();
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      const off = (this.time * 40) % 10;
+      for (let k = -10; k < rw + 10; k += 10) { ctx.moveTo(bx0 + k + off, ry + 10); ctx.lineTo(bx0 + k + off + 8, ry); }
+      ctx.stroke();
+      ctx.restore();
+      this.text('RAGING', bx0 + rw + 12, y + 78, 11, { weight: 700, spacing: 2 });
+    } else {
+      ctx.fillRect(bx0, ry, rw * clamp(p.rage / RAGE_CFG.max, 0, 1), 10);
+      if (full) {
+        ctx.globalAlpha = a * (flash ? 1 : 0.4);
+        this.text(Input.touchMode ? 'TAP RAGE' : 'PRESS R', bx0 + rw + 12, y + 78, 11, { weight: 700, spacing: 2 });
+        ctx.globalAlpha = a;
+      }
+    }
+    ctx.lineWidth = 1;
+
     // lives
-    this.text('LIVES', x, y + 78, 12, { weight: 700, spacing: 2 });
+    this.text('LIVES', x, y + 102, 12, { weight: 700, spacing: 2 });
     for (let i = 0; i < p.lives; i++) {
-      const lx = bx0 + 3 + i * 17, ly = y + 77;
+      const lx = bx0 + 3 + i * 17, ly = y + 101;
       ctx.beginPath();
       ctx.arc(lx + 3, ly - 10, 3.2, 0, TAU);
       ctx.fill();
@@ -4935,7 +5603,50 @@ class Game {
     if (this.waves.def) remaining = this.waves.remaining;
     else if (this.state === STATE.WAVE_INTRO) { remaining = 0; for (const ph of WAVES[this.waveIndex].phases) for (const [, n] of ph) remaining += n; }
     else remaining = 0;
-    this.text('ENEMIES: ' + remaining, x, y + 102, 12, { weight: 700, spacing: 2 });
+    this.text('ENEMIES: ' + remaining, x, y + 126, 12, { weight: 700, spacing: 2 });
+
+    // buffs: what you carry and how long it lasts
+    let by = y + 154;
+    const buff = (label, f, extra) => {
+      this.text(label, x, by, 11, { weight: 700, spacing: 2 });
+      const fx = bx0 + 22;
+      ctx.strokeRect(fx + 0.5, by - 8.5, 80, 6);
+      ctx.fillRect(fx, by - 9, 81 * clamp(f, 0, 1), 7);
+      if (extra) this.text(extra, fx + 92, by, 11, { weight: 700, spacing: 2 });
+      by += 20;
+    };
+    if (p.barrier > 0) {
+      let pips = '';
+      for (let i = 0; i < p.barrier; i++) pips += '◆';
+      buff('FIELD', p.barrierT / POWER_CFG.barrier.time, pips);
+    }
+    if (p.power === 'flight') buff('FLIGHT', p.fuel / POWER_CFG.flight.fuel, Math.ceil(p.powerT) + 's');
+    else if (p.power) buff(p.power === 'multi' ? 'MULTI' : 'SHOWER', p.powerT / POWER_CFG[p.power].time);
+
+    // the hit chain, top right
+    if (this.chain >= 3) {
+      const k = clamp(this.chainT / 2.2, 0, 1);
+      ctx.globalAlpha = a * Math.min(1, k * 3);
+      this.text(String(this.chain), VIEW_W - 60, 70, 40, { weight: 300, align: 'right' });
+      this.text('HITS', VIEW_W - 56, 70, 12, { weight: 700, spacing: 3 });
+      ctx.fillRect(VIEW_W - 160, 80, 140 * k, 2);
+      ctx.globalAlpha = a;
+    }
+
+    // a boss bar for the big ones
+    let boss = null;
+    for (const e of this.enemies) {
+      if (!e.active || e.dying || !e.c.big || e.state === 'spawn' || e.state === 'shadow') continue;
+      if (!boss || e.type === 'elite') boss = e;
+    }
+    if (boss) {
+      const w = 420, bxx = (VIEW_W - w) / 2, byy = VIEW_H - 48;
+      this.text(boss.type.toUpperCase(), VIEW_W / 2, byy - 8, 12, { weight: 700, spacing: 6, align: 'center' });
+      ctx.lineWidth = 2;
+      ctx.strokeRect(bxx, byy, w, 12);
+      ctx.fillRect(bxx + 3, byy + 3, (w - 6) * clamp(boss.hp / boss.maxHp, 0, 1), 6);
+      ctx.lineWidth = 1;
+    }
     ctx.globalAlpha = 1;
   }
 
@@ -4957,7 +5668,7 @@ class Game {
         this.text('TEST BUILD   ·   N  skip wave   ·   H  heal + fill magic', cx, 30, 11, { spacing: 2, align: 'center' });
       }
       ctx.globalAlpha = a * 0.8;
-      this.text('ARROWS / WASD  move      ←← / SHIFT  run (rogue: dash)      SPACE  jump      X / click  attack      F / right-click  back attack      V  magic      P  pause',
+      this.text('ARROWS / WASD  move      ←← / SHIFT  run (rogue: dash)      SPACE  jump      X / click  attack      F / right-click  back attack      V  magic      R  rage      P  pause',
         cx, VIEW_H - 10, 11, { spacing: 1, align: 'center' });
       ctx.globalAlpha = 1;
     } else if (s === STATE.WAVE_INTRO) {
@@ -5084,6 +5795,7 @@ class Game {
       ctx.fillStyle = s.id !== null ? INK : PAPER;
       ctx.fill(); ctx.stroke();
       for (const b of TouchLayout.buttons) {
+        if (!TouchLayout.shown(b)) continue;
         const down = Input.keyDown[b.action];
         ctx.globalAlpha = down ? 0.9 : 0.5;
         ctx.fillStyle = down ? INK : PAPER;
@@ -5126,6 +5838,8 @@ class Game {
       'GRAB & THROW   attack point-blank: knee, knee, then throw',
       'BACK ATTACK   F / RIGHT CLICK   or JUMP + ATTACK together - hits both sides',
       'MAGIC   V / Q   spends every pot you carry - more pots, bigger spell',
+      'RAGE   R / E   when the meter is full: harder hits, faster, nothing stops you',
+      'BLOCKS   jump into one from below, or strike it: it holds a powerup      LEDGES   jump up through, land on top',
       'LANES   you only hit what shares your lane - except the WARRIOR\'s sword wave (third slash)',
       'ARCHER   every third shot is a fire arrow      ROGUE   every strike cuts twice',
       'MUTE   M',

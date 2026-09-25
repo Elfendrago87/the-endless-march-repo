@@ -12,11 +12,12 @@ const KEYMAP = {
   KeyF: 'back', KeyU: 'back',
   ShiftLeft: 'run', ShiftRight: 'run', KeyC: 'run',
   KeyV: 'magic', KeyQ: 'magic', KeyL: 'magic',
+  KeyR: 'rage', KeyE: 'rage', KeyI: 'rage',
   Escape: 'pause', KeyP: 'pause',
   Enter: 'confirm',
 };
 
-const PAD_BUTTONS = { 0: 'jump', 2: 'attack', 1: 'back', 3: 'magic', 5: 'run', 7: 'run', 9: 'pause', 12: 'up', 13: 'down' };
+const PAD_BUTTONS = { 0: 'jump', 2: 'attack', 1: 'back', 3: 'magic', 4: 'rage', 6: 'rage', 5: 'run', 7: 'run', 9: 'pause', 12: 'up', 13: 'down' };
 
 const Input = {
   keyDown: {}, padDown: {}, pressed: {}, released: {},
@@ -204,10 +205,13 @@ const TouchLayout = {
     { action: 'run', label: 'RUN', x: 986, y: 526, r: 40 },
     { action: 'magic', label: 'MAGIC', x: 1108, y: 446, r: 40 },
     { action: 'pause', label: 'II', x: 1236, y: 44, r: 26 },
+    { action: 'rage', label: 'RAGE', x: 1214, y: 346, r: 40, only: 'rageReady' }, // shown when the meter is full
   ],
+  rageReady: false,
+  shown(b) { return !b.only || this[b.only]; },
   hit(x, y) {
     if (!Input.buttonsLive) return null;
-    for (const b of this.buttons) if (Math.hypot(x - b.x, y - b.y) <= b.r + 10) return b.action;
+    for (const b of this.buttons) if (this.shown(b) && Math.hypot(x - b.x, y - b.y) <= b.r + 10) return b.action;
     return null;
   },
 };

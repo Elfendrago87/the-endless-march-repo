@@ -48,6 +48,21 @@ function drawFigure(ctx, P, showEye) {
     ctx.restore();
   }
 
+  // outlined wings while flying (Rogue's power)
+  if (P.wings) {
+    const f = Math.sin(P.wings * 22);
+    for (const [len, sway] of [[30, 0], [24, 0.35]]) {
+      ctx.beginPath();
+      ctx.moveTo(-2, -34);
+      ctx.lineTo(-len, -44 - f * 12 + sway * 10);
+      ctx.lineTo(-len * 0.7, -36 - f * 6);
+      ctx.lineTo(-len * 0.9, -30 - f * 4 + sway * 6);
+      ctx.lineTo(-4, -28);
+      ctx.closePath();
+      finish(ctx);
+    }
+  }
+
   // torso
   limb(ctx, 0, hipY, 2, -35, weapon === 'daggers' ? 10 : 12);
 
@@ -275,6 +290,10 @@ class Player {
     this.runPhase = 0; this.squash = 0; this.ghostT = 0;
     this.deathT = 0; this.reported = false;
     this.control = true; this.speedMul = 1;
+    this.rage = 0; this.rageT = 0;
+    this.barrier = 0; this.barrierT = 0;
+    this.power = null; this.powerT = 0; this.fuel = 0; this.flying = false;
+    this.plat = null;
     this.time = 0;
   }
 
@@ -294,20 +313,39 @@ class Player {
   // Returns true when damage was applied.
   hurt(dmg, fromX, kb, kbUp, knockdown) {
     if (!this.alive || this.invulnerable || this.g.god) return false;
-    this.releaseGrab();
-    this.hp = Math.max(0, this.hp - dmg);
     const dir = this.cx >= fromX ? 1 : -1;
+    if (this.barrier > 0) {
+      // the force field takes the blow instead
+      this.barrier--;
+      if (this.barrier <= 0) this.barrierT = 0;
+      this.invuln = 0.45;
+      FX.ring(this.cx, this.screenY - 25, 20, 60, 0.3, false, 4);
+      FX.burst(this.cx, this.screenY - 25, 10, 300, { dir: -dir, streak: true, grav: 0 });
+      FX.shake(0.08);
+      Sound.block();
+      return true;
+    }
+    const raging = this.rageT > 0;
+    if (raging) dmg *= RAGE_CFG.damageTaken;
+    this.addRage(dmg * RAGE_CFG.perDamage);
+    this.hp = Math.max(0, this.hp - dmg);
+    FX.shake(0.2 + dmg / 90);
+    FX.burst(this.cx, this.screenY - 25, 14, 380, { dir: dir, spread: 1.2 });
+    FX.ring(this.cx, this.screenY - 25, 6, 46, 0.25, false, 4);
+    Sound.hurt();
+    this.g.onPlayerHurt(dmg);
+    if (raging && this.hp > 0) {
+      // raging: the hit lands, but nothing stops you
+      this.invuln = 0.3;
+      return true;
+    }
+    this.releaseGrab();
     this.atk = null;
     this.hitActive = false;
     this.combo = 0;
     this.running = false;
     this.hitCount++;
     this.hitCountT = 1.2;
-    FX.shake(0.2 + dmg / 90);
-    FX.burst(this.cx, this.screenY - 25, 14, 380, { dir: dir, spread: 1.2 });
-    FX.ring(this.cx, this.screenY - 25, 6, 46, 0.25, false, 4);
-    Sound.hurt();
-    this.g.onPlayerHurt(dmg);
     if (this.hp <= 0) { this.die(dir); return true; }
     if (knockdown || this.hitCount >= 3) {
       this.knockDown(dir, kb || 300);
@@ -399,8 +437,10 @@ class Player {
         if (I.pressed.back) this.backBuf = 0.15;
         if (I.pressed.magic) this.magicBuf = 0.15;
         if (I.pressed.run && this.cls.dash) this.dashBuf = 0.12;
+        if (I.pressed.rage) this.startRage();
       }
     }
+    this.updateBuffs(dt);
 
     switch (this.state) {
       case 'normal': this.updateNormal(dt, mx, mz); break;
@@ -434,6 +474,19 @@ class Player {
 
     // air attacks hang for a moment
     if (this.state === 'attack' && this.atk.air && this.atkPhase !== 'recovery' && this.vy > -100) this.vy -= GRAVITY * 0.5 * dt;
+
+    // Rogue flight: hold jump in the air while the power lasts
+    this.flying = false;
+    if (this.power === 'flight' && this.fuel > 0 && !this.onGround && Input.isDown('jump') && this.control &&
+        (this.state === 'normal' || this.state === 'attack')) {
+      const F = POWER_CFG.flight;
+      const elev = -(this.y + this.h);
+      this.vy = approach(this.vy, elev < F.maxHeight ? -F.rise : 0, 3000 * dt) - GRAVITY * dt;
+      this.fuel = Math.max(0, this.fuel - dt);
+      this.flying = true;
+      this.airAttacks = 0;
+      if (Math.random() < 0.3) FX.particle(this.cx - this.facing * 10, this.screenY - 30, -this.facing * 40, rand(20, 60), 0.3, 2.5, false, 0, 2);
+    }
 
     const wasGround = this.onGround;
     const fallSpeed = this.vy;
@@ -470,11 +523,17 @@ class Player {
     if (mx === 0 || (this.running && mx !== this.runDir && this.runDir !== 0)) this.running = holdRun && mx !== 0;
     this.runDir = this.running ? mx : 0;
 
+    const sm = this.speedMul * (this.rageT > 0 ? RAGE_CFG.speedMul : 1);
     if (this.onGround) {
       const sx = this.running ? c.runSpeed : c.walkSpeed;
       const sz = c.depthSpeed * (this.running ? 0.5 : 1);
-      this.vx = approach(this.vx, mx * sx * this.speedMul, c.accel * dt);
-      this.vz = approach(this.vz, mz * sz * this.speedMul, c.accel * dt);
+      this.vx = approach(this.vx, mx * sx * sm, c.accel * dt);
+      this.vz = approach(this.vz, mz * sz * sm, c.accel * dt);
+      if (mx) this.facing = mx;
+    } else if (this.flying) {
+      // in flight you steer freely
+      this.vx = approach(this.vx, mx * c.walkSpeed * 1.3 * sm, 1600 * dt);
+      this.vz = approach(this.vz, mz * c.depthSpeed * sm, 1200 * dt);
       if (mx) this.facing = mx;
     } else {
       // jumps are committed, with a little steering
@@ -612,7 +671,7 @@ class Player {
       this.atkT -= a.startup;
       if (!a.air && this.onGround && a.lunge) this.vx = this.facing * a.lunge;
       if (a.iframes) this.invuln = Math.max(this.invuln, a.active + 0.06);
-      if (a.wave) SwordWaves.fire(this.cx + this.facing * 40, this.facing, a.wave);
+      if (a.wave) SwordWaves.fire(this.cx + this.facing * 40, this.facing, this.rageT > 0 ? Object.assign({}, a.wave, { dmg: a.wave.dmg * RAGE_CFG.dmgMul }) : a.wave);
       if (a.shot) {
         this.fireShot(a.shot);
       } else if (!a.hits) {
@@ -682,9 +741,66 @@ class Player {
     const vx = this.facing * Math.cos(ang) * s.speed;
     const vy = Math.sin(ang) * s.speed;
     const spread = s.spread || [0];
-    for (const dz of spread) Arrows.fire(x, this.z, y, vx, vy, dz * 2.2, s);
+    const spec = this.rageT > 0 ? Object.assign({}, s, { dmg: s.dmg * RAGE_CFG.dmgMul, knockdown: true }) : s;
+    for (const dz of spread) Arrows.fire(x, this.z, y, vx, vy, dz * 2.2, spec);
+    if (this.power === 'shower') this.arrowShower(!!s.fire);
     Sound.bow(!!s.fire);
     if (s.fire) FX.ring(x, FLOOR_Y + this.z + y, 4, 30, 0.2, false, 2);
+  }
+
+  // ------------------------------------------------ powerups and rage
+  // The Archer's power: every shot also rains arrows over every lane ahead.
+  arrowShower(fire) {
+    const S = POWER_CFG.shower;
+    const mul = this.rageT > 0 ? RAGE_CFG.dmgMul : 1;
+    const spec = { speed: 0, dmg: S.dmg * mul, kb: 150, kbUp: -150, stagger: 0.3, knockdown: false, fire: fire, pierce: false, angle: 1.38 };
+    for (let i = 0; i < S.arrows; i++) {
+      const z = clamp((i + 0.5) * DEPTH / S.arrows + rand(-8, 8), 2, DEPTH - 2);
+      const x = this.cx + this.facing * (80 + rand(0, 280));
+      Arrows.fire(x - this.facing * 60, z, -(260 + rand(0, 90)), this.facing * 110, 640 + rand(0, 80), 0, spec);
+    }
+  }
+
+  // Picking up a powerup.
+  grantPower(kind) {
+    if (kind === 'heal') {
+      this.hp = Math.min(this.maxHp, this.hp + POWER_CFG.heal);
+    } else if (kind === 'barrier') {
+      this.barrier = POWER_CFG.barrier.hits;
+      this.barrierT = POWER_CFG.barrier.time;
+    } else if (kind === 'rage') {
+      this.rage = RAGE_CFG.max;
+    } else if (kind === 'power') {
+      const k = { warrior: 'multi', archer: 'shower', rogue: 'flight' }[this.cls.key];
+      this.power = k;
+      if (k === 'flight') { this.fuel = POWER_CFG.flight.fuel; this.powerT = POWER_CFG.flight.expire; }
+      else this.powerT = POWER_CFG[k].time;
+    }
+  }
+
+  addRage(n) {
+    if (this.rageT > 0 || !this.alive) return;
+    this.rage = Math.min(RAGE_CFG.max, this.rage + n);
+  }
+
+  startRage() {
+    if (this.rage < RAGE_CFG.max || this.rageT > 0 || !this.alive) return;
+    this.rage = 0;
+    this.rageT = RAGE_CFG.time;
+    FX.ring(this.cx, this.screenY - 25, 10, 140, 0.5, false, 6);
+    FX.burst(this.cx, this.screenY - 25, 24, 520, { streak: true, grav: 0 });
+    FX.shake(0.3);
+    Sound.rage();
+    this.g.hitstop(0.08);
+  }
+
+  updateBuffs(dt) {
+    if (this.rageT > 0) this.rageT -= dt;
+    if (this.barrierT > 0) { this.barrierT -= dt; if (this.barrierT <= 0) this.barrier = 0; }
+    if (this.power) {
+      this.powerT -= dt;
+      if (this.powerT <= 0 || (this.power === 'flight' && this.fuel <= 0 && this.onGround)) { this.power = null; this.fuel = 0; }
+    }
   }
 
   // ------------------------------------------------ grab / knee / throw
@@ -706,7 +822,7 @@ class Player {
     this.vx = 0; this.vz = 0;
     e.x = this.cx + this.facing * 20 - e.w / 2;
     e.z = this.z;
-    e.y = -e.h;
+    e.y = this.bottom - e.h;
     e.facing = -this.facing;
     this.kneeT -= dt;
     if (this.atkBuf > 0 && this.kneeT <= 0 && this.knees < G.knees) {
@@ -846,8 +962,49 @@ class Player {
     this.computePose();
     const blink = (this.invuln > 0 && this.state !== 'dash' && !(this.atk && this.atk.iframes)) || this.state === 'getup';
     if (blink && this.state !== 'magic' && Math.floor(this.time * 18) % 2 === 0) ctx.globalAlpha = 0.35;
+    if (this.rageT > 0) this.drawRageAura(ctx);
+    this.pose.wings = this.power === 'flight' && (this.flying || !this.onGround) ? this.time : 0;
     drawFigure(ctx, this.pose, true);
+    if (this.barrier > 0) this.drawBarrier(ctx);
     ctx.globalAlpha = 1;
+  }
+
+  // Jagged ink spikes around the figure while raging.
+  drawRageAura(ctx) {
+    const x = this.cx, y = this.screenY - 26, n = 14;
+    const k = Math.min(1, this.rageT);
+    ctx.save();
+    ctx.globalAlpha = 0.85 * k;
+    ctx.beginPath();
+    for (let i = 0; i <= n * 2; i++) {
+      const a = (i / (n * 2)) * TAU + this.time * 1.5;
+      const r = (i % 2 === 0 ? 40 : 28) + Math.sin(this.time * 30 + i * 1.7) * 4;
+      ctx.lineTo(x + Math.cos(a) * r * 0.8, y + Math.sin(a) * r);
+    }
+    ctx.closePath();
+    ctx.lineJoin = 'miter';
+    finish(ctx);
+    ctx.restore();
+  }
+
+  // The force field: an outlined bubble with one ring per hit it can still take.
+  drawBarrier(ctx) {
+    const x = this.cx, y = this.screenY - 26;
+    const fade = this.barrierT < 2 && Math.floor(this.time * 10) % 2 === 0 ? 0.3 : 1;
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = 2;
+    for (let i = 0; i < this.barrier; i++) {
+      const r = 36 + i * 5;
+      ctx.setLineDash(i === 0 ? [] : [6, 5]);
+      ctx.lineDashOffset = this.time * (i % 2 ? 30 : -30);
+      ctx.beginPath();
+      ctx.ellipse(x, y, r * 0.8, r, 0, 0, TAU);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    ctx.restore();
   }
 
   // What is left behind where the hero fell.

@@ -9,7 +9,7 @@ class Enemy {
   constructor() {
     this.active = false;
     this.atkBox = Rect();
-    this.aim = { x: 0, z: 0 };
+    this.aim = { x: 0, z: 0, b: 0 };
   }
 
   reset(type, x, z, opts) {
@@ -41,6 +41,7 @@ class Enemy {
     this.ringOff = rand(0, 70); this.zOff = rand(-60, 60); this.rerollT = rand(1.5, 3);
     this.thrownBy = null; this.fleeing = false;
     this.burnT = 0; this.burnTick = 0; this.lastArrowId = -1; this.lastWaveId = -1;
+    this.jumpCd = rand(0.5, 1.5); this.hpShowT = 0; this.plat = null;
     this.active = true;
     return this;
   }
@@ -74,8 +75,21 @@ class Enemy {
 
   // Walking in, enemies may be off-screen; once in the fight they stay on it.
   physics(dt, g, gravity) {
-    if (this.state === 'enter') moveActor(this, dt, g.enemyMinX, g.enemyMaxX, gravity);
-    else moveActor(this, dt, g.fightMinX, g.fightMaxX, gravity);
+    // flyers only touch platforms when they come down to rest
+    const noPlat = this.behavior === 'flyer' && this.state !== 'recover';
+    if (this.state === 'enter') moveActor(this, dt, g.enemyMinX, g.enemyMaxX, gravity, noPlat);
+    else moveActor(this, dt, g.fightMinX, g.fightMaxX, gravity, noPlat);
+  }
+
+  // Ground fighters jump up after a player standing on a platform.
+  climb(p, adx, dz) {
+    if (this.c.big || this.behavior === 'shield' || !this.onGround || this.jumpCd > 0) return;
+    const above = -(p.y + p.h) - -(this.y + this.h);
+    if (above > 25 && above < 130 && adx < 120 && Math.abs(dz) < 30) {
+      this.vy = -Math.sqrt(2 * GRAVITY * (above + 30));
+      this.jumpCd = 1.6;
+      this.onGround = false;
+    }
   }
   friction(dt, amt) {
     this.vx = approach(this.vx, 0, (amt || 1800) * dt);
@@ -124,7 +138,7 @@ class Enemy {
       this.vx = 0; this.vz = 0; this.vy = 0;
     }
     if (this.flashT > 0) this.flashT -= dt;
-    this.cd -= dt; this.poiseCd -= dt;
+    this.cd -= dt; this.poiseCd -= dt; this.jumpCd -= dt; this.hpShowT -= dt;
     this.rerollT -= dt;
     if (this.rerollT <= 0) { this.rerollT = rand(1.5, 3); this.zOff = rand(-60, 60); this.ringOff = rand(0, 70); }
 
@@ -233,6 +247,7 @@ class Enemy {
         if (this.t > 0.25) this.setState('approach');
         break;
       case 'approach':
+        this.climb(p, adx, dz);
         if (this.wantToken(g)) {
           const side = this.cx < p.cx ? -1 : 1;
           this.steer(p.cx + side * c.range * 0.7, p.z, 1, dt);
@@ -283,6 +298,7 @@ class Enemy {
         if (this.t > 0.15) this.setState('approach');
         break;
       case 'approach':
+        this.climb(p, adx, dz);
         if (this.wantToken(g)) {
           const side = this.cx < p.cx ? -1 : 1;
           this.steer(p.cx + side * 160, p.z, 1, dt);
@@ -340,7 +356,7 @@ class Enemy {
         this.facing = dir;
         this.friction(dt, 2000);
         if (this.t >= c.windup) {
-          Projectiles.fire(this.cx + this.facing * 16, this.z, -27, this.facing * c.projSpeed, 0, c.dmg, c.kb, 7, true);
+          Projectiles.fire(this.cx + this.facing * 16, this.z, this.bottom - 27, this.facing * c.projSpeed, 0, c.dmg, c.kb, 7, true);
           this.vx = -this.facing * 90;
           Sound.shoot();
           this.setState('recover');
@@ -379,9 +395,9 @@ class Enemy {
         this.friction(dt, 1200);
         this.vy = approach(this.vy, -40, 800 * dt);
         this.physics(dt, g, false);
-        this.aim.x = p.cx; this.aim.z = p.z;
+        this.aim.x = p.cx; this.aim.z = p.z; this.aim.b = p.bottom;
         if (this.t >= c.windup) {
-          const ax = this.aim.x - this.cx, az = this.aim.z - this.z, ay = -this.bottom;
+          const ax = this.aim.x - this.cx, az = this.aim.z - this.z, ay = this.aim.b - this.bottom;
           const len = Math.hypot(ax, az, ay) || 1;
           this.setState('dive');
           this.vx = ax / len * c.diveSpeed;
@@ -611,7 +627,7 @@ class Enemy {
     if (this.move === 'volley') {
       // three axes fanned out across the depth of the floor
       for (let i = -1; i <= 1; i++) {
-        Projectiles.fire(this.cx + this.facing * 20, this.z, -44, this.facing * m.speed, i * 70, m.dmg, m.kb, 8, true);
+        Projectiles.fire(this.cx + this.facing * 20, this.z, this.bottom - 44, this.facing * m.speed, i * 70, m.dmg, m.kb, 8, true);
       }
       Sound.shoot();
       this.recDur = m.recovery;
@@ -677,8 +693,10 @@ class Enemy {
     }
     this.hp -= atk.dmg * (c.dmgTaken || 1);
     this.flashT = 0.1;
+    this.hpShowT = 2.5;
     if (this.behavior === 'assassin') this.alpha = 1;
     this.releaseToken();
+    if (g.onEnemyHit) g.onEnemyHit(this, atk);
     const res = atk.magic ? 0 : (c.kbResist || 0);
     if (this.hp <= 0) { this.die(dir, atk.kb, g); return 'hit'; }
 
@@ -804,6 +822,20 @@ class Enemy {
     }
     inkFlash = false;
     ctx.restore();
+
+    // health bar for a while after being hit
+    if (this.hpShowT > 0 && !this.dying && this.behavior !== 'thief' && alpha > 0.3) {
+      const w = this.c.big ? 44 : 30, bx = this.cx - w / 2, by = this.screenY - this.h - (this.c.big ? 30 : 16);
+      ctx.globalAlpha = Math.min(1, this.hpShowT * 2) * alpha;
+      ctx.fillStyle = PAPER;
+      ctx.fillRect(bx, by, w, 5);
+      ctx.fillStyle = INK;
+      ctx.fillRect(bx, by, w * clamp(this.hp / this.maxHp, 0, 1), 5);
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(bx, by, w, 5);
+      ctx.globalAlpha = 1;
+    }
 
     // set alight by a fire arrow
     if (this.burnT > 0 && alpha > 0.1) {

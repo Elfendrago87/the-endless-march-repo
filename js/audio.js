@@ -108,6 +108,14 @@ const Sound = {
   },
   wave() { this.hiss(0.45, 0.35, 400, 0.8, 'bandpass', 1800); this.tone(140, 60, 0.35, 'sine', 0.25); },
   burn() { this.hiss(0.18, 0.1, 900, 0.7, 'bandpass', 400); },
+  bump() { this.tone(180, 120, 0.1, 'square', 0.12); this.tone(90, 70, 0.12, 'sine', 0.4); },
+  powerup() {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    // a quick rising arpeggio
+    [330, 415, 494, 660].forEach((f, i) => setTimeout(() => this.tone(f, f, 0.14, 'triangle', 0.14), i * 55));
+  },
+  rage() { this.tone(70, 140, 0.6, 'sawtooth', 0.2); this.hiss(0.6, 0.4, 300, 0.6, 'lowpass', 1600); this.tone(55, 55, 0.8, 'sine', 0.5); },
   grab() { this.hiss(0.08, 0.3, 300, 1, 'lowpass'); this.tone(120, 80, 0.1, 'sine', 0.3); },
   pickup() { this.tone(880, 1320, 0.09, 'triangle', 0.09); this.tone(1320, 1760, 0.12, 'triangle', 0.06); },
   magic(level) {

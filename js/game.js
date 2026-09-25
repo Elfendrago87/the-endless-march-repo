@@ -31,6 +31,9 @@ class Game {
     this.drawList = [];
     this.thiefTimers = [];
     this.spawnSide = 1;
+    this.blocks = [];
+    this.popups = [];
+    this.chain = 0; this.chainT = 0; this.bestChain = 0;
 
     const q = new URLSearchParams(location.search);
     this.debug = q.has('debug') || !!window.SEEK_TEST_BUILD;
@@ -141,6 +144,15 @@ class Game {
     this.thiefTimers.length = 0;
     this.slowT = 0;
     this.fadeIn = 1;
+    this.buildPlatforms();
+    this.popups.length = 0;
+    this.chain = 0; this.chainT = 0;
+  }
+
+  // Ledges and power blocks are rebuilt for every run, so blocks refill.
+  buildPlatforms() {
+    this.blocks = STAGE.blocks.map((d) => new PowerBlock(d));
+    PLATFORMS = STAGE.platforms.map((d) => new Platform(d)).concat(this.blocks.map((b) => b.plat));
   }
 
   toTitle() {
@@ -325,7 +337,13 @@ class Game {
   }
 
   updateWorld(dt) {
+    for (let i = 0; i < PLATFORMS.length; i++) { PLATFORMS[i].update(dt); PLATFORMS[i].updateFade(this.player, dt); }
+    const headBefore = -this.player.y;
     this.player.update(dt);
+    this.updateBlocks(dt, headBefore);
+    this.updatePopups(dt);
+    if (this.chainT > 0) { this.chainT -= dt; if (this.chainT <= 0) this.chain = 0; }
+    TouchLayout.rageReady = this.player.rage >= RAGE_CFG.max && this.player.rageT <= 0;
     if (this.magic) {
       // the world holds its breath while the spell is cast
       this.updateMagic(dt);
@@ -375,13 +393,19 @@ class Game {
   resolvePlayerHits() {
     const p = this.player;
     if (!p.hitActive) return;
-    const a = p.atk, hb = p.hitBox;
+    let a = p.atk;
+    const hb = p.hitBox;
+    // a sword strike can open a power block
+    if (this.strikeBlock(hb.x, hb.x + hb.w, p.z, hb.y, hb.y + hb.h, p.attackId)) FX.shake(0.05);
+    const multi = p.power === 'multi';
+    if (p.rageT > 0) a = Object.assign({}, a, { dmg: a.dmg * RAGE_CFG.dmgMul, kb: a.kb * 1.2 });
+    const depth = multi ? DEPTH : a.depth;
     let hits = 0, blocked = false;
     const E = this.enemies;
     for (let i = 0; i < E.length; i++) {
       const e = E[i];
       if (!e.active || e.lastHitId === p.attackId) continue;
-      if (!hitsActor(hb, a.depth, p.z, e)) continue;
+      if (!hitsActor(hb, depth, p.z, e)) continue;
       e.lastHitId = p.attackId;
       const ix = (Math.max(hb.x, e.x) + Math.min(hb.x + hb.w, e.x + e.w)) / 2;
       const iy = FLOOR_Y + e.z + (Math.max(hb.y, e.y) + Math.min(hb.y + hb.h, e.y + e.h)) / 2;
@@ -399,6 +423,11 @@ class Game {
       }
     }
     if (hits > 0) {
+      if (multi && p.multiFx !== p.attackId) {
+        // the strike echoes down every lane
+        p.multiFx = p.attackId;
+        for (let z = 20; z < DEPTH; z += 50) FX.ring(p.cx + p.facing * 50, FLOOR_Y + z + p.bottom - 30, 4, 34, 0.18, false, 2);
+      }
       this.hitstop(a.hitstop);
       FX.shake(a.shake);
       Sound.hit(!!a.heavy);
@@ -417,7 +446,7 @@ class Game {
     for (const e of this.enemies) {
       if (!e.active || e.untouchable || e.c.noGrab || e.c.big || !e.onGround || !OK[e.state]) continue;
       const dx = e.cx - p.cx, adx = Math.abs(dx);
-      if (adx > GRAB_CFG.range || Math.abs(e.z - p.z) > GRAB_CFG.depth) continue;
+      if (adx > GRAB_CFG.range || Math.abs(e.z - p.z) > GRAB_CFG.depth || Math.abs(e.bottom - p.bottom) > 10) continue;
       if (adx > 8 && sign(dx) !== p.facing) continue;
       if (adx < bd) { bd = adx; best = e; }
     }
@@ -607,12 +636,91 @@ class Game {
     Sound.pickup();
   }
 
-  pickUp(kind, x, z) {
+  pickUp(kind, x, z, elev) {
     const p = this.player;
-    if (kind === 'pot') p.pots = Math.min(PLAYER_CFG.maxPots, p.pots + 1);
-    else p.hp = Math.min(p.maxHp, p.hp + PLAYER_CFG.foodHeal);
-    FX.ring(x, FLOOR_Y + z - 10, 4, 36, 0.3, false, 2);
-    Sound.pickup();
+    const y = FLOOR_Y + z - (elev || 0) - 10;
+    if (kind === 'pot' || kind === 'food') {
+      if (kind === 'pot') p.pots = Math.min(PLAYER_CFG.maxPots, p.pots + 1);
+      else p.hp = Math.min(p.maxHp, p.hp + PLAYER_CFG.foodHeal);
+      FX.ring(x, y, 4, 36, 0.3, false, 2);
+      Sound.pickup();
+      return;
+    }
+    p.grantPower(kind);
+    const label = kind === 'heal' ? '+' + POWER_CFG.heal + ' HP' : kind === 'barrier' ? 'FORCE FIELD' : kind === 'rage' ? 'RAGE FULL' : POWER_NAMES[p.power];
+    this.popup(label, p.cx, p.screenY - p.h - 18);
+    FX.ring(p.cx, p.screenY - 25, 6, 70, 0.4, false, 3);
+    FX.burst(p.cx, p.screenY - 25, 14, 300, { up: 1.0, streak: true, grav: 200 });
+    Sound.powerup();
+  }
+
+  // ------------------------------------------------------------ blocks, rage, chains
+  // Hit from below: the head meets a block's underside while rising.
+  updateBlocks(dt, headBefore) {
+    const p = this.player;
+    for (const b of this.blocks) {
+      if (b.bounce > 0) b.bounce = Math.max(0, b.bounce - dt * 5);
+      if (!p.alive || p.vy > 0 || Math.abs(p.z - b.zc) > 14) continue;
+      if (p.x + p.w <= b.x + 2 || p.x >= b.x + b.w - 2) continue;
+      const head = -p.y;
+      if (headBefore <= b.h + 0.5 && head > b.h) {
+        p.y = -b.h;
+        p.vy = 80;
+        this.bumpBlock(b);
+      }
+    }
+  }
+
+  // A strike (sword box, arrow tip) that overlaps a block opens it. y is body space.
+  strikeBlock(x0, x1, z, y0, y1, id) {
+    for (const b of this.blocks) {
+      if (Math.abs(z - b.zc) > LANE || x1 <= b.x || x0 >= b.x + b.w) continue;
+      if (y1 < -(b.h + b.size) || y0 > -b.h) continue;
+      if (id !== undefined) { if (b.lastHitId === id) continue; b.lastHitId = id; }
+      this.bumpBlock(b);
+      return true;
+    }
+    return false;
+  }
+
+  bumpBlock(b) {
+    b.bounce = 1;
+    Sound.bump();
+    const x = b.x + b.w / 2, y = FLOOR_Y + b.zc - b.h - b.size / 2;
+    FX.burst(x, y, 6, 200, { up: 1.0, streak: true, grav: 500 });
+    if (b.used) return;
+    b.used = true;
+    Items.drop(b.item, x, b.zc, b.h + b.size, true);
+    FX.ring(x, y, 6, 50, 0.3, false, 3);
+  }
+
+  onEnemyHit(e, atk) {
+    if (atk.magic) return;
+    this.player.addRage(RAGE_CFG.perHit);
+    this.chain++;
+    this.chainT = 2.2;
+    this.bestChain = Math.max(this.bestChain, this.chain);
+  }
+
+  popup(text, x, y) {
+    this.popups.push({ text, x, y, t: 0 });
+  }
+
+  updatePopups(dt) {
+    for (let i = this.popups.length - 1; i >= 0; i--) {
+      const q = this.popups[i];
+      q.t += dt;
+      q.y -= 30 * dt;
+      if (q.t > 1.4) this.popups.splice(i, 1);
+    }
+  }
+
+  drawPopups(ctx) {
+    for (const q of this.popups) {
+      ctx.globalAlpha = clamp(1.4 - q.t, 0, 1);
+      this.text(q.text, q.x, q.y, 13, { weight: 700, spacing: 3, align: 'center' });
+    }
+    ctx.globalAlpha = 1;
   }
 
   // ------------------------------------------------------------ spawning
@@ -655,6 +763,11 @@ class Game {
     FX.shake(big ? 0.3 : 0.1);
     Sound.enemyDie(big);
     this.waves.onDefeated();
+    this.player.addRage(RAGE_CFG.perKill);
+    if (big || Math.random() < POWER_CFG.dropChance) {
+      const kinds = ['heal', 'barrier', 'power'];
+      Items.drop(kinds[Math.floor(Math.random() * kinds.length)], x, e.z, Math.max(0, -e.bottom));
+    }
     const split = e.c.split;
     if (split) {
       for (let i = 0; i < split.count; i++) {
@@ -671,7 +784,7 @@ class Game {
     }
   }
 
-  onPlayerHurt() { this.hurtFlash = 1; this.hitstop(0.06); }
+  onPlayerHurt() { this.hurtFlash = 1; this.hitstop(0.06); this.chain = 0; this.chainT = 0; }
 
   // The player's fall animation has finished: spend a life or end the run.
   onPlayerFallen() {
@@ -857,16 +970,29 @@ class Game {
     ctx.globalAlpha = 1;
     Projectiles.drawShadows(ctx);
     Arrows.drawShadows(ctx);
-    Items.draw(ctx);
+    Items.drawShadows(ctx);
+    const x0 = c.x - 220, x1 = c.x + vw + 220;
+    for (let i = 0; i < PLATFORMS.length; i++) {
+      const pl = PLATFORMS[i];
+      if (!pl.block && pl.x + pl.w > x0 && pl.x < x1) pl.drawShadow(ctx);
+    }
 
-    // actors, back to front
+    // ledges, pickups and actors, back to front
     const list = this.drawList;
     list.length = 0;
     list.push(p);
     for (let i = 0; i < E.length; i++) if (E[i].active) list.push(E[i]);
+    for (let i = 0; i < PLATFORMS.length; i++) {
+      const pl = PLATFORMS[i];
+      if (pl.x + pl.w > x0 && pl.x < x1) list.push(pl);
+    }
+    for (const it of Items.pool.items) if (it.active) list.push(it);
     list.sort((a, b) => a.z - b.z);
     for (let i = 0; i < list.length; i++) {
-      if (list[i] === p) p.draw(ctx); else list[i].draw(ctx, this);
+      const o = list[i];
+      if (o === p) p.draw(ctx);
+      else if (o.isItem) Items.draw(ctx, o);
+      else o.draw(ctx, this);
     }
 
     Projectiles.draw(ctx);
@@ -874,6 +1000,7 @@ class Game {
     SwordWaves.draw(ctx);
     this.drawMagic(ctx);
     FX.drawFront(ctx);
+    this.drawPopups(ctx);
     if (doorShown) this.drawDoorLight(ctx);
     this.stage.drawFront(ctx, c.x, vw, c.y + VIEW_H / z);
     ctx.restore();
@@ -1069,10 +1196,39 @@ class Game {
       else { ctx.beginPath(); ctx.arc(px, py - 4, 4.5, 0, TAU); ctx.stroke(); }
     }
 
+    // rage: fills as you hit, kill and get hurt; full, it can be unleashed
+    const rw = blocks * (bw + gap) - gap, ry = y + 70;
+    const full = p.rage >= RAGE_CFG.max && p.rageT <= 0;
+    const flash = full && Math.floor(this.time * 6) % 2 === 0;
+    this.text('RAGE', x, y + 78, 12, { weight: 700, spacing: 2 });
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx0 + 0.5, ry + 0.5, rw - 1, 9);
+    if (p.rageT > 0) {
+      // unleashed: the bar drains, striped
+      const f = p.rageT / RAGE_CFG.time;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(bx0, ry, rw * f, 10); ctx.clip();
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      const off = (this.time * 40) % 10;
+      for (let k = -10; k < rw + 10; k += 10) { ctx.moveTo(bx0 + k + off, ry + 10); ctx.lineTo(bx0 + k + off + 8, ry); }
+      ctx.stroke();
+      ctx.restore();
+      this.text('RAGING', bx0 + rw + 12, y + 78, 11, { weight: 700, spacing: 2 });
+    } else {
+      ctx.fillRect(bx0, ry, rw * clamp(p.rage / RAGE_CFG.max, 0, 1), 10);
+      if (full) {
+        ctx.globalAlpha = a * (flash ? 1 : 0.4);
+        this.text(Input.touchMode ? 'TAP RAGE' : 'PRESS R', bx0 + rw + 12, y + 78, 11, { weight: 700, spacing: 2 });
+        ctx.globalAlpha = a;
+      }
+    }
+    ctx.lineWidth = 1;
+
     // lives
-    this.text('LIVES', x, y + 78, 12, { weight: 700, spacing: 2 });
+    this.text('LIVES', x, y + 102, 12, { weight: 700, spacing: 2 });
     for (let i = 0; i < p.lives; i++) {
-      const lx = bx0 + 3 + i * 17, ly = y + 77;
+      const lx = bx0 + 3 + i * 17, ly = y + 101;
       ctx.beginPath();
       ctx.arc(lx + 3, ly - 10, 3.2, 0, TAU);
       ctx.fill();
@@ -1083,7 +1239,50 @@ class Game {
     if (this.waves.def) remaining = this.waves.remaining;
     else if (this.state === STATE.WAVE_INTRO) { remaining = 0; for (const ph of WAVES[this.waveIndex].phases) for (const [, n] of ph) remaining += n; }
     else remaining = 0;
-    this.text('ENEMIES: ' + remaining, x, y + 102, 12, { weight: 700, spacing: 2 });
+    this.text('ENEMIES: ' + remaining, x, y + 126, 12, { weight: 700, spacing: 2 });
+
+    // buffs: what you carry and how long it lasts
+    let by = y + 154;
+    const buff = (label, f, extra) => {
+      this.text(label, x, by, 11, { weight: 700, spacing: 2 });
+      const fx = bx0 + 22;
+      ctx.strokeRect(fx + 0.5, by - 8.5, 80, 6);
+      ctx.fillRect(fx, by - 9, 81 * clamp(f, 0, 1), 7);
+      if (extra) this.text(extra, fx + 92, by, 11, { weight: 700, spacing: 2 });
+      by += 20;
+    };
+    if (p.barrier > 0) {
+      let pips = '';
+      for (let i = 0; i < p.barrier; i++) pips += '◆';
+      buff('FIELD', p.barrierT / POWER_CFG.barrier.time, pips);
+    }
+    if (p.power === 'flight') buff('FLIGHT', p.fuel / POWER_CFG.flight.fuel, Math.ceil(p.powerT) + 's');
+    else if (p.power) buff(p.power === 'multi' ? 'MULTI' : 'SHOWER', p.powerT / POWER_CFG[p.power].time);
+
+    // the hit chain, top right
+    if (this.chain >= 3) {
+      const k = clamp(this.chainT / 2.2, 0, 1);
+      ctx.globalAlpha = a * Math.min(1, k * 3);
+      this.text(String(this.chain), VIEW_W - 60, 70, 40, { weight: 300, align: 'right' });
+      this.text('HITS', VIEW_W - 56, 70, 12, { weight: 700, spacing: 3 });
+      ctx.fillRect(VIEW_W - 160, 80, 140 * k, 2);
+      ctx.globalAlpha = a;
+    }
+
+    // a boss bar for the big ones
+    let boss = null;
+    for (const e of this.enemies) {
+      if (!e.active || e.dying || !e.c.big || e.state === 'spawn' || e.state === 'shadow') continue;
+      if (!boss || e.type === 'elite') boss = e;
+    }
+    if (boss) {
+      const w = 420, bxx = (VIEW_W - w) / 2, byy = VIEW_H - 48;
+      this.text(boss.type.toUpperCase(), VIEW_W / 2, byy - 8, 12, { weight: 700, spacing: 6, align: 'center' });
+      ctx.lineWidth = 2;
+      ctx.strokeRect(bxx, byy, w, 12);
+      ctx.fillRect(bxx + 3, byy + 3, (w - 6) * clamp(boss.hp / boss.maxHp, 0, 1), 6);
+      ctx.lineWidth = 1;
+    }
     ctx.globalAlpha = 1;
   }
 
@@ -1105,7 +1304,7 @@ class Game {
         this.text('TEST BUILD   ·   N  skip wave   ·   H  heal + fill magic', cx, 30, 11, { spacing: 2, align: 'center' });
       }
       ctx.globalAlpha = a * 0.8;
-      this.text('ARROWS / WASD  move      ←← / SHIFT  run (rogue: dash)      SPACE  jump      X / click  attack      F / right-click  back attack      V  magic      P  pause',
+      this.text('ARROWS / WASD  move      ←← / SHIFT  run (rogue: dash)      SPACE  jump      X / click  attack      F / right-click  back attack      V  magic      R  rage      P  pause',
         cx, VIEW_H - 10, 11, { spacing: 1, align: 'center' });
       ctx.globalAlpha = 1;
     } else if (s === STATE.WAVE_INTRO) {
@@ -1232,6 +1431,7 @@ class Game {
       ctx.fillStyle = s.id !== null ? INK : PAPER;
       ctx.fill(); ctx.stroke();
       for (const b of TouchLayout.buttons) {
+        if (!TouchLayout.shown(b)) continue;
         const down = Input.keyDown[b.action];
         ctx.globalAlpha = down ? 0.9 : 0.5;
         ctx.fillStyle = down ? INK : PAPER;
@@ -1274,6 +1474,8 @@ class Game {
       'GRAB & THROW   attack point-blank: knee, knee, then throw',
       'BACK ATTACK   F / RIGHT CLICK   or JUMP + ATTACK together - hits both sides',
       'MAGIC   V / Q   spends every pot you carry - more pots, bigger spell',
+      'RAGE   R / E   when the meter is full: harder hits, faster, nothing stops you',
+      'BLOCKS   jump into one from below, or strike it: it holds a powerup      LEDGES   jump up through, land on top',
       'LANES   you only hit what shares your lane - except the WARRIOR\'s sword wave (third slash)',
       'ARCHER   every third shot is a fire arrow      ROGUE   every strike cuts twice',
       'MUTE   M',

@@ -16,8 +16,8 @@ cd "$(dirname "$0")/.."
 BT="${ANDROID_BUILD_TOOLS:?set ANDROID_BUILD_TOOLS to a build-tools directory}"
 JAR="${ANDROID_JAR:?set ANDROID_JAR to a platform android.jar}"
 KS="${ANDROID_KEYSTORE:-$HOME/.android/endless-march.jks}"
-VERSION_NAME="0.6.0"
-VERSION_CODE=6
+VERSION_NAME="0.7.0"
+VERSION_CODE=7
 
 OUT=build/android
 rm -rf "$OUT"

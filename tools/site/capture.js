@@ -1,9 +1,9 @@
 // Screenshots and recorded demos for the website.
-//   docs/img/shots/*.png     moments from the current version (docs/play/0.6.0)
+//   docs/img/shots/*.png     moments from the current version (docs/play/<CURRENT>)
 //   docs/media/demo-<v>.webm a recorded demo of every version, played by a bot
 //   docs/media/demo-<v>.jpg  its poster frame
 // Needs Playwright + Chromium (PLAYWRIGHT / CHROMIUM env vars override paths).
-//   node tools/site/capture.js [shots|demos]
+//   node tools/site/capture.js [shots|demos] [version, to record one demo]
 const { chromium } = require(process.env.PLAYWRIGHT || 'playwright');
 const fs = require('fs');
 const path = require('path');
@@ -16,6 +16,7 @@ fs.mkdirSync(mediaDir, { recursive: true });
 const launchOpts = process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {};
 const playUrl = (v, q) => 'file://' + path.join(root, 'docs', 'play', v, 'index.html') + (q ? '?' + q : '');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const CURRENT = '0.7.0';
 
 // A bot that plays any version. Injected into the page; drives Input directly.
 function installBot() {
@@ -50,6 +51,7 @@ function installBot() {
     }
     const dz = best.z - p.z;
     const cls = p.cls ? p.cls.key : 'warrior';
+    if (p.rage >= 100 && !(p.rageT > 0)) Input.pressed.rage = true;
     if (dodge > 0) { dodge -= 0.05; dodgeDir > 0 ? K.down = true : K.up = true; return; }
     for (const e of g.enemies) {
       if (e.active && e.state === 'windup' && Math.abs(e.z - p.z) < 20 && Math.abs(e.cx - p.cx) < 240 && Math.random() < 0.25) {
@@ -97,7 +99,7 @@ async function shots(browser) {
   const open = async (q, opts) => {
     const ctx = await browser.newContext(Object.assign({ viewport: { width: 1280, height: 720 } }, opts || {}));
     const page = await ctx.newPage();
-    await page.goto(playUrl('0.6.0', q));
+    await page.goto(playUrl(CURRENT, q));
     return { ctx, page };
   };
   let s;
@@ -121,6 +123,16 @@ async function shots(browser) {
   await startGame(s.page, true);
   if (await waitFor(s.page, () => SEEK.player.state === 'attack' && SEEK.player.atk.name === 'dash' && SEEK.player.atkPhase === 'active', null, 60000)) await shot('rogue-dash', s.page);
   if (await waitFor(s.page, () => SEEK.player.state === 'grab', null, 40000)) { await sleep(150); await shot('grab', s.page); }
+  await s.ctx.close();
+
+  // ledges, a power block and the arrow shower
+  s = await open('god&class=archer&wave=1');
+  await startGame(s.page, true);
+  await waitFor(s.page, () => SEEK.state === 'WAVE', null, 10000);
+  await s.page.evaluate(() => { SEEK.player.grantPower('power'); });
+  await sleep(3000);
+  // keep shooting until a shower is in the air
+  if (await waitFor(s.page, () => { Input.pressed.attack = true; return Arrows.pool.items.filter((a) => a.active && a.stuck <= 0 && a.vy > 300).length >= 5; }, null, 30000)) { await sleep(60); await shot('powers', s.page); }
   await s.ctx.close();
 
   s = await open('god&class=warrior&wave=4');
@@ -174,6 +186,8 @@ const DEMOS = [
   { v: '0.5.0', q: 'god&class=archer&wave=4', classes: true },
   { v: '0.6.0', q: 'god&class=warrior&wave=7', classes: true },
   { v: '0.6.0-mobile', play: '0.6.0', q: 'god&class=rogue&wave=2', classes: true, mobile: true },
+  // with the arrow shower from a power block, then rage
+  { v: '0.7.0', q: 'god&class=archer&wave=2', classes: true, setup: () => { SEEK.player.grantPower('power'); setTimeout(() => { SEEK.player.rage = 100; }, 12000); } },
 ];
 
 async function demo(browser, d) {
@@ -190,6 +204,10 @@ async function demo(browser, d) {
     await page.touchscreen.tap(640, 200); await sleep(300); await page.touchscreen.tap(640, 200);
     await page.evaluate(installBot);
   } else await startGame(page, d.classes);
+  if (d.setup) {
+    await waitFor(page, () => SEEK.state === 'WAVE', null, 10000);
+    await page.evaluate(d.setup);
+  }
   await sleep(14000);
   await page.screenshot({ path: path.join(mediaDir, 'demo-' + d.v + '.jpg'), type: 'jpeg', quality: 80 });
   await sleep(14000);
@@ -206,7 +224,8 @@ async function demo(browser, d) {
   if (what === 'all' || what === 'shots') await shots(browser);
   if (what === 'all' || what === 'demos') {
     // three at a time
-    for (let i = 0; i < DEMOS.length; i += 3) await Promise.all(DEMOS.slice(i, i + 3).map((d) => demo(browser, d)));
+    const list = process.argv[3] ? DEMOS.filter((d) => d.v === process.argv[3]) : DEMOS;
+    for (let i = 0; i < list.length; i += 3) await Promise.all(list.slice(i, i + 3).map((d) => demo(browser, d)));
   }
   await browser.close();
 })();

@@ -64,6 +64,9 @@ def main():
             if line.startswith('### '):
                 if in_list: notes.append('</ul>'); in_list = False
                 notes.append(f'<h3>{inline(line[4:])}</h3>')
+            elif line.startswith('  - '):
+                if not in_list: notes.append('<ul>'); in_list = True
+                notes.append(f'<li class="sub">{inline(line[4:])}</li>')
             elif line.startswith('- '):
                 if not in_list: notes.append('<ul>'); in_list = True
                 notes.append(f'<li>{inline(line[2:])}</li>')
