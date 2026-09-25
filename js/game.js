@@ -32,7 +32,7 @@ class Game {
     this.spawnSide = 1;
 
     const q = new URLSearchParams(location.search);
-    this.debug = q.has('debug');
+    this.debug = q.has('debug') || !!window.SEEK_TEST_BUILD;
     this.god = q.has('god');
     this.firstWave = clamp((parseInt(q.get('wave'), 10) || 1) - 1, 0, WAVES.length - 1);
 
@@ -1030,6 +1030,10 @@ class Game {
       this.text('SEEK', cx, 172, 132, { weight: 300, spacing: 44, align: 'center' });
       ctx.globalAlpha = a * (0.45 + 0.35 * Math.sin(this.time * 2.5));
       this.text('press any key', cx, 218, 15, { spacing: 4, align: 'center' });
+      if (window.SEEK_TEST_BUILD) {
+        ctx.globalAlpha = a * 0.6;
+        this.text('TEST BUILD   ·   N  skip wave   ·   H  heal + fill magic', cx, 30, 11, { spacing: 2, align: 'center' });
+      }
       ctx.globalAlpha = a * 0.8;
       this.text('ARROWS / WASD  move      ←← / SHIFT  run      SPACE  jump      X / click  attack      F / right-click  back attack      V  magic      P  pause',
         cx, VIEW_H - 10, 11, { spacing: 1, align: 'center', color: '#fff' });

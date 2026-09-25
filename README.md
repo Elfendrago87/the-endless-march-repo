@@ -8,6 +8,15 @@ A black figure with an enormous black sword walks a long white road and fights t
 
 Open `index.html` in a modern browser. There is no build step and nothing to install.
 
+### Single-file builds
+
+`dist/seek.html` is the whole game in one self-contained HTML file. `dist/seek-test.html` is the same file with the debug keys switched on: `N` clears the current wave and `H` heals you and fills your magic. Rebuild both after changing the code:
+
+```sh
+node tools/build.js          # dist/seek.html
+node tools/build.js --test   # dist/seek-test.html
+```
+
 If your browser blocks local files, serve the folder instead:
 
 ```sh
