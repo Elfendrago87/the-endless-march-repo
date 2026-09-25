@@ -24,7 +24,7 @@ The game started out under the working title **SEEK** and was renamed **The Endl
 ### Other
 - Version number on the title and pause screens.
 - The pause screen explains the lane rule.
-- Enemy behaviour code: the `ai` field and `aiMelee`… routines are renamed `behavior` / `actMelee`…
+- Enemy behaviour code tidied and renamed for clarity.
 - The app icon generator can render any size (used for the Android and home-screen icons).
 - The website in `docs/`: guide, art style, planned story mode, changelog, downloads and demos for every version.
 

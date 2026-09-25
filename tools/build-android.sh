@@ -55,6 +55,6 @@ if [ ! -f "$KS" ]; then
     -dname "CN=The Endless March" >/dev/null 2>&1
 fi
 "$BT/apksigner" sign --ks "$KS" --ks-pass pass:endlessmarch --key-pass pass:endlessmarch \
-  --ks-key-alias endlessmarch --out dist/The-Endless-March-Android.apk "$OUT/aligned.apk"
+  --ks-key-alias endlessmarch --v4-signing-enabled false --out dist/The-Endless-March-Android.apk "$OUT/aligned.apk"
 "$BT/apksigner" verify dist/The-Endless-March-Android.apk
 echo "wrote dist/The-Endless-March-Android.apk ($(du -h dist/The-Endless-March-Android.apk | cut -f1))"

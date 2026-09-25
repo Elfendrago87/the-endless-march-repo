@@ -146,7 +146,7 @@ js/input.js         keyboard / mouse / gamepad mapped to actions (double-tap run
 js/world.js         Stage (parallax horizon, floor, foreground) + belt-scroller movement
 js/fx.js            pooled particles, slashes, rings, screen shake
 js/player.js        classes, movement, run/dash, combos, arrows, grab/knee/throw, magic, knockdown, lives, drawing
-js/enemies.js       Enemy class: per-archetype AI on the floor plane + outlined figures
+js/enemies.js       Enemy class: per-archetype behaviour on the floor plane + outlined figures
 js/projectiles.js   pooled enemy axes (parryable), the Archer's arrows (fire, pierce, burn) and item pickups
 js/waves.js         data-driven WaveManager (required / spawned / alive / defeated)
 js/game.js          game states, camera locks, spawning, hits, magic, rest, door, HUD, ending
