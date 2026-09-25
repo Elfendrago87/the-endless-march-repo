@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Guide · The Endless March</title>
-<link rel="icon" href="play/0.6.0/icons/icon-192.png">
+<link rel="icon" href="play/0.7.0/icons/icon-192.png">
 <link rel="stylesheet" href="assets/site.css">
 <script src="assets/site.js"></script>
 </head>
@@ -23,7 +23,7 @@
 
 <main>
   <h1>Guide</h1>
-  <p class="sub">Everything in version 0.6.0</p>
+  <p class="sub">Everything in version 0.7.0</p>
 
   <ul class="toc">
     <li><a href="#flow">How a run goes</a></li>
@@ -31,6 +31,7 @@
     <li><a href="#lanes">The lane rule</a></li>
     <li><a href="#classes">The three paths</a></li>
     <li><a href="#combat">Combat</a></li>
+    <li><a href="#powers">Ledges, blocks, powerups and rage</a></li>
     <li><a href="#magic">Magic, thieves and food</a></li>
     <li><a href="#night">Nights</a></li>
     <li><a href="#lives">Health, lives and falling</a></li>
@@ -64,6 +65,8 @@
       <tr><td>Attack</td><td><kbd>X</kbd> <kbd>J</kbd></td><td>left click</td><td>X</td><td>ATTACK</td></tr>
       <tr><td>Back attack</td><td><kbd>F</kbd> <kbd>U</kbd>, or Jump + Attack together</td><td>right click</td><td>B</td><td>BACK</td></tr>
       <tr><td>Magic</td><td><kbd>V</kbd> <kbd>Q</kbd> <kbd>L</kbd></td><td></td><td>Y</td><td>MAGIC</td></tr>
+      <tr><td>Rage (when the meter is full)</td><td><kbd>R</kbd> <kbd>E</kbd> <kbd>I</kbd></td><td></td><td>LB / LT</td><td>RAGE (appears when full)</td></tr>
+      <tr><td>Fly (Rogue, with the flight power)</td><td>hold <kbd>Space</kbd> in the air</td><td></td><td>hold A</td><td>hold JUMP</td></tr>
       <tr><td>Pause (shows the controls)</td><td><kbd>P</kbd> <kbd>Esc</kbd></td><td></td><td>Start</td><td>II (Android: Back)</td></tr>
       <tr><td>Mute</td><td><kbd>M</kbd></td><td></td><td></td><td></td></tr>
     </table></div>
@@ -141,6 +144,20 @@
       <div class="card"><h3>Parry</h3><p>A sword swing that is active when it touches a thrown axe cuts the axe out of the air.</p></div>
       <div class="card"><h3>Knockdowns</h3><p>Heavy hits, or three hits in quick succession, put you on the floor too. While you lie there and stand up, nothing can hurt you.</p></div>
     </div>
+  </section>
+
+  <section id="powers">
+    <h2>Ledges, blocks, powerups and rage</h2>
+    <figure class="shot"><img src="img/shots/powers.png" alt="The Archer's arrow shower: arrows rain down across every lane onto two enemies, beside an outlined ledge on legs and a floating power block." loading="lazy"><figcaption>The Archer's arrow shower, next to a ledge and a power block.</figcaption></figure>
+    <div class="grid wide">
+      <div class="card"><h3>Ledges</h3><p>Raised slabs on legs stand along the road; a few of them slide back and forth or rise and sink. Jump up through one from below and land on top, and a moving one carries you. Walkers climb up after you if you stay close; flyers don't need to.</p></div>
+      <div class="card"><h3>Power blocks</h3><p>Floating blocks marked with a star. Jump into one from below, strike it, or shoot it, and it pops out a powerup. An empty block stays behind and you can stand on it. There are thirteen on the road, and they refill every run.</p></div>
+      <div class="card"><h3>Heart and force field</h3><p>The <b>heart</b> gives back 40 HP. The <b>force field</b> (a hexagon) wraps you in a dashed bubble that takes the next three hits for you, for up to 16 seconds.</p></div>
+      <div class="card"><h3>Class capsule</h3><p>A pill marked with your class's sign. <b>Warrior:</b> for 12 seconds every sword hit lands in every lane. <b>Archer:</b> for 12 seconds every shot also brings a shower of six arrows down across every lane ahead. <b>Rogue:</b> wings, and 6 seconds of flight to spend within 25 seconds: hold jump in the air.</p></div>
+      <div class="card"><h3>Rage</h3><p>The meter fills as you hit, kill and get hurt. When it's full, press <kbd>R</kbd>: for 8 seconds you hit half again as hard, move faster, take less damage, and nothing staggers you or knocks you down. The <b>rage burst</b> (a spiked star) fills it at once.</p></div>
+      <div class="card"><h3>Health bars</h3><p>An enemy's health shows above it for a moment after you hit it. The Brute and the Elite get a bar across the bottom of the screen. Top right counts your chain of hits until you're hurt or stop hitting.</p></div>
+    </div>
+    <p class="muted">Enemies drop a heart, a force field or a capsule now and then; Brutes and the Elite always drop one.</p>
   </section>
 
   <section id="magic">
@@ -237,6 +254,6 @@
   </section>
 </main>
 
-<footer>THE ENDLESS MARCH: JOURNEY TO THE END · v0.6.0</footer>
+<footer>THE ENDLESS MARCH: JOURNEY TO THE END · v0.7.0</footer>
 </body>
 </html>

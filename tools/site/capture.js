@@ -187,7 +187,7 @@ const DEMOS = [
   { v: '0.6.0', q: 'god&class=warrior&wave=7', classes: true },
   { v: '0.6.0-mobile', play: '0.6.0', q: 'god&class=rogue&wave=2', classes: true, mobile: true },
   // with the arrow shower from a power block, then rage
-  { v: '0.7.0', q: 'god&class=archer&wave=2', classes: true, setup: () => { SEEK.player.grantPower('power'); setTimeout(() => { SEEK.player.rage = 100; }, 12000); } },
+  { v: '0.7.0', q: 'god&class=archer&wave=4', classes: true, setup: () => { SEEK.player.grantPower('power'); setTimeout(() => { SEEK.player.rage = 100; }, 9000); } },
 ];
 
 async function demo(browser, d) {
