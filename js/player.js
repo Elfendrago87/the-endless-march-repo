@@ -464,7 +464,7 @@ class Player {
   updateNormal(dt, mx, mz) {
     const c = this.stats, I = Input;
     // running: double-tap a direction, or hold run (the Rogue's run key dashes instead)
-    const holdRun = !this.cls.dash && I.isDown('run');
+    const holdRun = (!this.cls.dash && I.isDown('run')) || I.touchRun;
     if (I.doubleTap && I.doubleTap === mx) this.running = true;
     if (holdRun && mx !== 0) this.running = true;
     if (mx === 0 || (this.running && mx !== this.runDir && this.runDir !== 0)) this.running = holdRun && mx !== 0;
@@ -612,6 +612,7 @@ class Player {
       this.atkT -= a.startup;
       if (!a.air && this.onGround && a.lunge) this.vx = this.facing * a.lunge;
       if (a.iframes) this.invuln = Math.max(this.invuln, a.active + 0.06);
+      if (a.wave) SwordWaves.fire(this.cx + this.facing * 40, this.facing, a.wave);
       if (a.shot) {
         this.fireShot(a.shot);
       } else if (!a.hits) {
@@ -656,23 +657,20 @@ class Player {
     }
   }
 
-  // The Archer looses arrows down the lane (a fan across lanes when `spread`).
-  // Light aim assist, decided as the bow is drawn: a level shot settles into
-  // the lane of the nearest enemy in front (if it is close to your own lane),
-  // and tilts upward when that enemy is in the air.
+  // The Archer looses arrows straight down the lane she stands in.
+  // Decided as the bow is drawn. Arrows keep to your lane; the bow only tilts
+  // up when the nearest enemy in front, in your lane, is in the air.
   takeAim(s) {
     this.aimAng = s.angle || 0;
-    this.aimZ = this.z;
-    if (s.angle || (s.spread && s.spread.length > 1)) return;
+    if (s.angle) return;
     let best = 1e9, target = null;
     for (const e of this.g.enemies) {
-      if (!e.active || e.untouchable || e.ai === 'thief' || e.state === 'shadow') continue;
-      const dx = (e.cx - this.cx) * this.facing, dz = e.z - this.z;
-      if (dx < 30 || dx > 520 || Math.abs(dz) > 26) continue;
+      if (!e.active || e.untouchable || e.state === 'shadow') continue;
+      const dx = (e.cx - this.cx) * this.facing;
+      if (dx < 30 || dx > 520 || Math.abs(e.z - this.z) > LANE) continue;
       if (dx < best) { best = dx; target = e; }
     }
     if (!target) return;
-    this.aimZ = target.z;
     const rise = (target.y + target.h * 0.5) - (this.bottom - 28);
     if (rise < -20) this.aimAng = clamp(Math.atan2(rise, best), -0.95, 0);
   }
@@ -684,7 +682,7 @@ class Player {
     const vx = this.facing * Math.cos(ang) * s.speed;
     const vy = Math.sin(ang) * s.speed;
     const spread = s.spread || [0];
-    for (const dz of spread) Arrows.fire(x, spread.length > 1 ? this.z : this.aimZ, y, vx, vy, dz * 2.2, s);
+    for (const dz of spread) Arrows.fire(x, this.z, y, vx, vy, dz * 2.2, s);
     Sound.bow(!!s.fire);
     if (s.fire) FX.ring(x, FLOOR_Y + this.z + y, 4, 30, 0.2, false, 2);
   }

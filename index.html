@@ -2,11 +2,19 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Endless March">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <title>The Endless March: Journey to the End</title>
 <style>
-  html, body { margin: 0; padding: 0; height: 100%; background: #fff; overflow: hidden; }
-  canvas { display: block; outline: none; cursor: crosshair; }
+  html, body { margin: 0; padding: 0; height: 100%; background: #fff; overflow: hidden; overscroll-behavior: none; }
+  canvas { display: block; outline: none; cursor: crosshair; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 </style>
 </head>
 <body>
@@ -22,5 +30,11 @@
 <script src="js/projectiles.js"></script>
 <script src="js/waves.js"></script>
 <script src="js/game.js"></script>
+<script>
+  // Installable / offline when served over http(s); harmless when opened as a file.
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !window.NO_SW) {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  }
+</script>
 </body>
 </html>

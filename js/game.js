@@ -56,6 +56,8 @@ class Game {
     this.toTitle();
 
     Input.init(canvas);
+    Input.toView = (x, y) => ({ x: (x * this.dpr - this.viewX) / this.viewScale, y: (y * this.dpr - this.viewY) / this.viewScale });
+    Input.onTap = (x, y) => this.onTap(x, y);
     Input.onRawKey = (code) => {
       if (this.debug && code === 'KeyN') this.debugClearWave();
       if (this.debug && code === 'KeyH') { this.player.hp = this.player.maxHp; this.player.pots = PLAYER_CFG.maxPots; }
@@ -80,6 +82,7 @@ class Game {
     this.canvas.style.height = h + 'px';
     const s = Math.min(w / VIEW_W, h / VIEW_H);
     this.viewScale = s * dpr;
+    this.dpr = dpr;
     this.viewX = (w - VIEW_W * s) / 2 * dpr;
     this.viewY = (h - VIEW_H * s) / 2 * dpr;
   }
@@ -127,6 +130,7 @@ class Game {
     this.enemyPool.clear();
     Projectiles.clear();
     Arrows.clear();
+    SwordWaves.clear();
     Items.clear();
     FX.clear();
     this.waves.def = null;
@@ -213,6 +217,7 @@ class Game {
 
   // ------------------------------------------------------------ step
   step(dt) {
+    Input.buttonsLive = this.pausable() || this.paused;
     if (Input.pressed.pause && this.pausable()) this.paused = !this.paused;
     if (this.paused) {
       if (Input.pressed.confirm) this.paused = false;
@@ -331,6 +336,7 @@ class Game {
       this.resolveThrownBodies();
       Projectiles.update(dt, this);
       Arrows.update(dt, this);
+      SwordWaves.update(dt, this);
       this.updateBurns(dt);
     }
     this.resolvePlayerHits();
@@ -340,7 +346,7 @@ class Game {
 
   separateEnemies() {
     const E = this.enemies;
-    const busy = (e) => !e.active || e.ai === 'flyer' || e.ai === 'thief' || e.untouchable || e.state === 'shadow' || e.state === 'attack';
+    const busy = (e) => !e.active || e.behavior === 'flyer' || e.behavior === 'thief' || e.untouchable || e.state === 'shadow' || e.state === 'attack';
     for (let i = 0; i < E.length; i++) {
       const a = E[i];
       if (busy(a)) continue;
@@ -436,8 +442,8 @@ class Game {
     for (const t of E) {
       if (!t.active || t.state !== 'thrown') continue;
       for (const o of E) {
-        if (o === t || !o.active || o.ai === 'thief' || o.lastThrowId === t.throwId) continue;
-        if (Math.abs(o.z - t.z) > 22 || !rectsOverlap(t, o)) continue;
+        if (o === t || !o.active || o.behavior === 'thief' || o.lastThrowId === t.throwId) continue;
+        if (Math.abs(o.z - t.z) > LANE || !rectsOverlap(t, o)) continue;
         o.lastThrowId = t.throwId;
         const r = o.hit({ dmg: GRAB_CFG.splashDmg, kb: 320, kbUp: -420, knockdown: true, heavy: true, magic: true, stagger: 0.4 }, t.cx, t.bottom, this);
         if (r === 'hit') {
@@ -491,7 +497,7 @@ class Game {
     const targets = [];
     const p = this.player;
     for (const e of this.enemies) {
-      if (!e.active || e.dying || e.ai === 'thief') continue;
+      if (!e.active || e.dying || e.behavior === 'thief') continue;
       if (e.cx < this.cam.x - 20 || e.cx > this.cam.x + this.viewW + 20) continue;
       targets.push(e);
     }
@@ -616,11 +622,11 @@ class Game {
     if (!e) return false;
     const p = this.player, vw = this.viewW, cx = this.cam.x;
     let z = rand(10, DEPTH - 10);
-    if (c.ai === 'flyer') {
+    if (c.behavior === 'flyer') {
       const x = p.cx > cx + vw / 2 ? cx + rand(60, vw * 0.35) : cx + vw - rand(60, vw * 0.35);
       e.reset(type, x, z, { facing: p.cx >= x ? 1 : -1 });
       Sound.spawn();
-    } else if (c.ai === 'assassin' || Math.random() < 0.3) {
+    } else if (c.behavior === 'assassin' || Math.random() < 0.3) {
       // rise out of the ground somewhere not too close
       let x = cx + vw / 2;
       for (let tries = 0; tries < 12; tries++) {
@@ -675,7 +681,7 @@ class Game {
       p.revive();
       // standing back up blasts nearby enemies off their feet
       for (const e of this.enemies) {
-        if (!e.active || e.untouchable || e.ai === 'thief') continue;
+        if (!e.active || e.untouchable || e.behavior === 'thief') continue;
         const d = Math.hypot(e.cx - p.cx, (e.z - p.z) * 1.5);
         if (d < 180) e.launch(e.cx >= p.cx ? 1 : -1, 320, -420);
       }
@@ -694,7 +700,7 @@ class Game {
     w.queue.length = 0;
     w.phase = w.def.phases.length - 1;
     w.spawned = w.required;
-    for (const e of this.enemies) if (e.active && e.ai !== 'thief') e.active = false;
+    for (const e of this.enemies) if (e.active && e.behavior !== 'thief') e.active = false;
     w.alive = 0;
     w.defeated = w.required;
   }
@@ -793,6 +799,7 @@ class Game {
     }
 
     this.drawHUD(ctx);
+    if (Input.touchMode) this.drawTouch(ctx);
     this.drawOverlayText(ctx);
 
     if (this.fadeIn > 0) {
@@ -802,6 +809,7 @@ class Game {
       ctx.globalAlpha = 1;
     }
     if (this.paused) this.drawPause(ctx);
+    if (Input.touchMode) this.drawRotateHint(ctx);
     ctx.restore();
 
     // Night inverts the world: white silhouettes in a black land.
@@ -863,6 +871,7 @@ class Game {
 
     Projectiles.draw(ctx);
     Arrows.draw(ctx);
+    SwordWaves.draw(ctx);
     this.drawMagic(ctx);
     FX.drawFront(ctx);
     if (doorShown) this.drawDoorLight(ctx);
@@ -892,7 +901,7 @@ class Game {
       ctx.fill();
     };
     for (const e of this.enemies) {
-      if (!e.active || e.state === 'shadow' || e.ai === 'thief' || e.dying) continue;
+      if (!e.active || e.state === 'shadow' || e.behavior === 'thief' || e.dying) continue;
       chevron(e.cx, e.screenY - e.h / 2, !!e.c.big);
     }
     if (this.state === STATE.DOOR && this.doorRise > 0.3) chevron(this.stage.door.x, FLOOR_Y - 60, true);
@@ -1088,7 +1097,9 @@ class Game {
       this.text('THE ENDLESS MARCH', cx, 140, 60, { weight: 300, spacing: 16, align: 'center' });
       this.text('JOURNEY TO THE END', cx, 182, 18, { weight: 400, spacing: 12, align: 'center' });
       ctx.globalAlpha = a * (0.45 + 0.35 * Math.sin(this.time * 2.5));
-      this.text('press any key', cx, 226, 15, { spacing: 4, align: 'center' });
+      this.text(Input.touchMode ? 'tap to begin' : 'press any key', cx, 226, 15, { spacing: 4, align: 'center' });
+      ctx.globalAlpha = a * 0.5;
+      this.text('v' + GAME_VERSION, 16, 24, 11, { spacing: 2 });
       if (window.SEEK_TEST_BUILD) {
         ctx.globalAlpha = a * 0.6;
         this.text('TEST BUILD   ·   N  skip wave   ·   H  heal + fill magic', cx, 30, 11, { spacing: 2, align: 'center' });
@@ -1194,8 +1205,56 @@ class Game {
       }
     });
     ctx.globalAlpha = 0.45 + 0.35 * Math.sin(t * 2.5);
-    this.text('← →  choose        X / SPACE / ENTER  begin the march', cx, VIEW_H - 22, 13, { spacing: 3, align: 'center' });
+    this.text(Input.touchMode ? 'tap a path to choose it - tap it again to begin the march' : '← →  choose        X / SPACE / ENTER  begin the march', cx, VIEW_H - 22, 13, { spacing: 3, align: 'center' });
     ctx.globalAlpha = 1;
+  }
+
+  // Menu taps on touch screens.
+  onTap(x, y) {
+    if (this.state !== STATE.SELECT || this.stateT < 0.3) return;
+    const col = x < VIEW_W / 2 - 170 ? 0 : x > VIEW_W / 2 + 170 ? 2 : 1;
+    if (col === this.selIndex) Input.pressed.confirm = true;
+    else { this.selIndex = col; Sound.pickup(); }
+  }
+
+  // On-screen stick and buttons, drawn in the game's outline style.
+  drawTouch(ctx) {
+    ctx.save();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = INK;
+    if (Input.buttonsLive) {
+      const s = Input.stick, R = TouchLayout.stickR;
+      const ox = s.id !== null ? s.ox : 170, oy = s.id !== null ? s.oy : 560;
+      ctx.globalAlpha = s.id !== null ? 0.8 : 0.35;
+      ctx.fillStyle = PAPER;
+      ctx.beginPath(); ctx.arc(ox, oy, R, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(s.id !== null ? s.x : ox, s.id !== null ? s.y : oy, 30, 0, TAU);
+      ctx.fillStyle = s.id !== null ? INK : PAPER;
+      ctx.fill(); ctx.stroke();
+      for (const b of TouchLayout.buttons) {
+        const down = Input.keyDown[b.action];
+        ctx.globalAlpha = down ? 0.9 : 0.5;
+        ctx.fillStyle = down ? INK : PAPER;
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill(); ctx.stroke();
+        let label = b.label;
+        if (b.action === 'run' && this.player.cls.dash) label = 'DASH';
+        ctx.globalAlpha = down ? 1 : 0.75;
+        this.text(label, b.x, b.y + 4, b.r > 50 ? 13 : 10, { weight: 700, spacing: 1, align: 'center', color: down ? PAPER : INK });
+      }
+    }
+    ctx.restore();
+  }
+
+  // Portrait phones: ask for landscape (drawn above everything else).
+  drawRotateHint(ctx) {
+    if (window.innerHeight > window.innerWidth) {
+      ctx.fillStyle = PAPER;
+      ctx.globalAlpha = 0.9;
+      ctx.fillRect(0, 250, VIEW_W, 200);
+      ctx.globalAlpha = 1;
+      this.text('TURN YOUR DEVICE SIDEWAYS', VIEW_W / 2, 350, 34, { weight: 300, spacing: 10, align: 'center' });
+      this.text('the march is played in landscape', VIEW_W / 2, 390, 16, { spacing: 3, align: 'center' });
+    }
   }
 
   drawPause(ctx) {
@@ -1205,6 +1264,7 @@ class Game {
     ctx.globalAlpha = 1;
     const cx = VIEW_W / 2;
     this.text('PAUSED', cx, 210, 34, { weight: 300, spacing: 16, align: 'center' });
+    this.text('v' + GAME_VERSION, 16, 24, 11, { spacing: 2 });
     const lines = [
       'MOVE   ARROWS / WASD   (up and down walk into and out of the screen)',
       'RUN   double-tap ← or →,  or hold SHIFT / C      ROGUE: SHIFT / C dashes (untouchable), attack out of it: twin strike',
@@ -1214,6 +1274,7 @@ class Game {
       'GRAB & THROW   attack point-blank: knee, knee, then throw',
       'BACK ATTACK   F / RIGHT CLICK   or JUMP + ATTACK together - hits both sides',
       'MAGIC   V / Q   spends every pot you carry - more pots, bigger spell',
+      'LANES   you only hit what shares your lane - except the WARRIOR\'s sword wave (third slash)',
       'ARCHER   every third shot is a fire arrow      ROGUE   every strike cuts twice',
       'MUTE   M',
     ];

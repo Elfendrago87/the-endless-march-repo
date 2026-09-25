@@ -4,7 +4,11 @@ A minimalist black-and-white belt-scroller in the spirit of Golden Axe, without 
 
 An outlined figure with an enormous sword walks a long white road and fights ten waves along the way. Everything with a body (the hero, the enemies, their weapons, the ruins and fortresses on the horizon) is drawn as a white shape with a black outline. After Wave 10, a monolith rises at the end of the road and its door opens onto blinding white light. What it means is up to the player.
 
+**Website:** the `docs/` folder is a GitHub Pages site with the full guide, art notes, the planned story mode, the changelog, every version to download, and a playable and recorded demo of each. See [Publishing the site](#publishing-the-site).
+
 ## Play
+
+The current version is **0.6.0**. See [CHANGELOG.md](CHANGELOG.md) for every version.
 
 ### Windows
 
@@ -27,6 +31,29 @@ The launcher's source is in `desktop/`, a small Go program. To rebuild the bundl
 ./tools/build-exe.sh
 ```
 
+### Android
+
+Install `dist/The-Endless-March-Android.apk` on an Android 7.0+ phone or tablet (allow installs from your browser or file manager when asked). It is a small full-screen landscape app with the whole game inside, so it plays offline. The Back button pauses.
+
+To rebuild it (needs a JDK, the Android build-tools and one platform's `android.jar`; no Gradle or Android Studio):
+
+```sh
+ANDROID_BUILD_TOOLS=/path/to/build-tools/35.0.1 \
+ANDROID_JAR=/path/to/platforms/android-35/android.jar \
+./tools/build-android.sh
+```
+
+The first build creates a signing key at `~/.android/endless-march.jks`. Keep it: Android only installs an update over an earlier install if both are signed with the same key.
+
+### iPhone and iPad
+
+- **Home-screen app:** open the game's web page in Safari, tap Share → **Add to Home Screen**. It then launches full screen and plays offline.
+- **Native app:** `mobile/ios/` is an Xcode project (defined with XcodeGen) that wraps the game in a WKWebView. It can only be built on a Mac: run `./tools/prepare-ios.sh`, then `cd mobile/ios && xcodegen && open EndlessMarch.xcodeproj`, choose your team under Signing, and run it on a device.
+
+### Touch controls
+
+On a phone or tablet the controls appear on screen the first time you touch it: a floating stick on the left half (push it to the rim to run) and ATTACK, JUMP, BACK, RUN (DASH for the Rogue) and MAGIC buttons on the right, plus II to pause. Tap a path on the class screen to choose it, and tap it again to start. Play in landscape.
+
 ### In a browser
 
 Open `index.html` in a modern browser. There is no build step and nothing to install.
@@ -48,15 +75,17 @@ npx http-server .     # or: python3 -m http.server
 
 After the title screen you choose one of three paths. If you die, the run restarts with the same class.
 
+**The lane rule:** you only hit what shares your lane. Every sword slash, arrow and dagger cut keeps to the lane you stand in, so step up or down to line up. The one exception is the Warrior's **sword wave**: the third slash of the combo sends a crescent of force rolling forward across the whole road, hitting anything on the ground it passes, in every lane. (Magic also strikes the whole screen.)
+
 | | Warrior | Archer | Rogue |
 |---|---|---|---|
 | HP | 100 | 90 | 85 |
 | Weapon | the enormous sword | a bow | twin daggers |
-| Combo | three slashes, the last knocks down | two arrows, then a **fire arrow** that pierces, knocks down and sets enemies burning | two **twin strikes** (two cuts per press), then a cross cut that knocks down |
-| Running attack | shoulder-first lunge | skid and loose a fan of three arrows across the lanes | **dash twin strike**: lunge through the enemy line, cutting twice, untouchable while it lasts |
+| Combo | three slashes; the last knocks down and releases a **sword wave** that crosses every lane | two arrows, then a **fire arrow** that pierces, knocks down and sets enemies burning | two **twin strikes** (two cuts per press), then a cross cut that knocks down |
+| Running attack | shoulder-first lunge | skid and loose a heavy piercing shot down your lane | **dash twin strike**: lunge through the enemy line, cutting twice, untouchable while it lasts |
 | In the air | downward slash | an arrow angled down at the floor | dagger dive |
 | Back attack | full sword spin | bow sweep | blade spin |
-| Special | – | aim assist: an arrow settles into the lane of the enemy in front, and tilts up at enemies in the air | Shift/C is an **evasive dash** in any direction (up and down too) with brief invulnerability; attack out of it for the dash twin strike |
+| Special | the sword wave | the bow tilts up at an enemy in the air, if it is in your lane | Shift/C is an **evasive dash** in any direction (up and down too) with brief invulnerability; attack out of it for the dash twin strike |
 
 Arrows fly down the lane you stand in, stick in the ground where they land, and glance off a raised shield. A burning enemy takes 4 damage every half second for about two seconds. All three classes can grab and throw, back attack, and cast magic.
 
@@ -77,7 +106,7 @@ Arrows fly down the lane you stand in, stick in the ground where they land, and 
 ## How it plays
 
 - **The road.** The screen locks when a wave begins. Enemies walk in from both edges or rise out of the ground. When the wave is cleared, **GO →** appears and you walk on to the next one.
-- **Depth.** Attacks only land when you and your target share a lane. Line up to hit, and step up or down out of a lane to dodge thrown axes, lunges and dashes.
+- **Lanes.** Attacks only land when you and your target share a lane; only the Warrior's sword wave crosses lanes. Line up to hit, and step up or down out of a lane to dodge thrown axes, lunges and dashes.
 - **Combos.** Every class has a three-part combo whose last hit knocks enemies to the floor. The Warrior's sword does 15, 18, then 28 damage.
 - **Running attack.** Attack while running for a knockdown lunge that carries your momentum.
 - **Jump attack.** A slash in the air that knocks enemies down.
@@ -135,3 +164,9 @@ Waves are defined only as data. Each wave sets a camera `lockX` on the road and 
 - `?god` makes you invulnerable.
 - `?class=warrior|archer|rogue` pre-selects a class on the selection screen.
 - `?debug` lets you press `N` to clear the current wave and `H` to heal and fill your pots.
+
+## Publishing the site
+
+The website lives in `docs/`. To publish it with GitHub Pages: in the repository's **Settings → Pages**, set *Source* to *Deploy from a branch*, then choose the branch and the `/docs` folder. (GitHub Pages for a private repository needs a paid GitHub plan; otherwise make the repository public.)
+
+`tools/build-site.sh` rebuilds everything under `docs/` that comes from the game itself: a playable copy and downloads for every version, the recorded demos, and the screenshots and figure drawings used on the pages.

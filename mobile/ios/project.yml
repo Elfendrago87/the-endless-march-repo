@@ -1,0 +1,33 @@
+# XcodeGen spec for the iOS app. On a Mac:
+#   brew install xcodegen
+#   ./tools/prepare-ios.sh          # copies the game into EndlessMarch/www
+#   cd mobile/ios && xcodegen && open EndlessMarch.xcodeproj
+# then pick your team under Signing & Capabilities and run on a device.
+name: EndlessMarch
+options:
+  bundleIdPrefix: com.endlessmarch
+  deploymentTarget:
+    iOS: "15.0"
+targets:
+  EndlessMarch:
+    type: application
+    platform: iOS
+    sources:
+      - path: EndlessMarch
+        excludes: ["www"]
+      - path: EndlessMarch/www
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.endlessmarch.game
+        MARKETING_VERSION: "0.6.0"
+        CURRENT_PROJECT_VERSION: "6"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: "Endless March"
+        INFOPLIST_KEY_UIStatusBarHidden: YES
+        INFOPLIST_KEY_UIRequiresFullScreen: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations: "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES

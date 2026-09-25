@@ -2,11 +2,19 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Endless March">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
 <title>The Endless March: Journey to the End (test build)</title>
 <style>
-  html, body { margin: 0; padding: 0; height: 100%; background: #fff; overflow: hidden; }
-  canvas { display: block; outline: none; cursor: crosshair; }
+  html, body { margin: 0; padding: 0; height: 100%; background: #fff; overflow: hidden; overscroll-behavior: none; }
+  canvas { display: block; outline: none; cursor: crosshair; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 </style>
 </head>
 <body>
@@ -137,12 +145,17 @@ function detailInk(flash) { return (flash || inkFlash) ? PAPER : INK; }
 // Attacks connect when their box overlaps in x/elevation AND the two actors
 // are within the attack's depth tolerance.
 
+const GAME_VERSION = '0.6.0';
 const VIEW_W = 1280;
 const VIEW_H = 720;
 const ZOOM = 1.5;          // world units -> screen pixels (final wave pulls back)
 const FLOOR_Y = 250;       // world y of the horizon (back edge of the floor)
 const DEPTH = 190;         // walkable depth band
 const DEPTH_TOL = 16;      // default depth tolerance for melee hits
+// The lane rule: you only hit what shares your lane. Every player attack uses
+// this depth tolerance; the Warrior's sword wave is the one attack that
+// crosses lanes (and magic, which strikes the whole screen).
+const LANE = 16;
 const GRAVITY = 2300;
 const SPAWN_TIME = 0.75;   // seconds an enemy spends rising out of the ground
 
@@ -167,37 +180,39 @@ const PLAYER_CFG = {
 const PLAYER_ATTACKS = {
   a1: {
     name: 'a1', dmg: 15, startup: 0.07, active: 0.09, recovery: 0.22,
-    chainAfter: 0.05, next: 'a2', comboIndex: 1, depth: 18,
+    chainAfter: 0.05, next: 'a2', comboIndex: 1, depth: LANE,
     lunge: 110, kb: 180, kbUp: -100, stagger: 0.4, hitstop: 0.045, shake: 0.08,
     box: { x: 4, y: -62, w: 90, h: 66 }, sweep: [-2.2, 0.9], thickness: 20,
   },
   a2: {
     name: 'a2', dmg: 18, startup: 0.08, active: 0.09, recovery: 0.24,
-    chainAfter: 0.06, next: 'a3', comboIndex: 2, depth: 18,
+    chainAfter: 0.06, next: 'a3', comboIndex: 2, depth: LANE,
     lunge: 130, kb: 220, kbUp: -120, stagger: 0.45, hitstop: 0.055, shake: 0.13,
     box: { x: 0, y: -72, w: 98, h: 76 }, sweep: [1.1, -2.0], thickness: 24,
   },
   a3: {
     name: 'a3', dmg: 28, startup: 0.18, active: 0.11, recovery: 0.42,
-    chainAfter: 99, next: null, comboIndex: 0, heavy: true, knockdown: true, depth: 24,
+    chainAfter: 99, next: null, comboIndex: 0, heavy: true, knockdown: true, depth: LANE,
     lunge: 200, kb: 520, kbUp: -520, stagger: 0.6, hitstop: 0.11, shake: 0.4,
     box: { x: -12, y: -102, w: 136, h: 110 }, sweep: [-2.95, 1.35], thickness: 40,
+    // the finisher releases a sword wave: it rolls forward across every lane
+    wave: { dmg: 12, speed: 560, range: 400, kb: 260, kbUp: -300, stagger: 0.45 },
   },
   air: {
     name: 'air', dmg: 18, startup: 0.06, active: 0.14, recovery: 0.2,
-    chainAfter: 99, next: null, comboIndex: 0, air: true, knockdown: true, depth: 22,
+    chainAfter: 99, next: null, comboIndex: 0, air: true, knockdown: true, depth: LANE,
     lunge: 0, kb: 320, kbUp: -380, stagger: 0.4, hitstop: 0.06, shake: 0.12,
     box: { x: -20, y: -60, w: 116, h: 120 }, sweep: [-1.8, 2.4], thickness: 26,
   },
   dash: { // running attack: a shoulder-first lunge that carries momentum
     name: 'dash', dmg: 22, startup: 0.05, active: 0.2, recovery: 0.38,
-    chainAfter: 99, next: null, comboIndex: 0, knockdown: true, heavy: true, depth: 20,
+    chainAfter: 99, next: null, comboIndex: 0, knockdown: true, heavy: true, depth: LANE,
     lunge: 360, kb: 460, kbUp: -460, stagger: 0.5, hitstop: 0.08, shake: 0.25,
     box: { x: 0, y: -62, w: 104, h: 62 }, sweep: [-0.7, 0.35], thickness: 18,
   },
   back: { // attack+jump together: a full spin that clears both sides
     name: 'back', dmg: 14, startup: 0.06, active: 0.16, recovery: 0.42,
-    chainAfter: 99, next: null, comboIndex: 0, knockdown: true, depth: 26,
+    chainAfter: 99, next: null, comboIndex: 0, knockdown: true, depth: LANE,
     lunge: 0, kb: 380, kbUp: -420, stagger: 0.5, hitstop: 0.07, shake: 0.18, bothSides: true,
     box: { x: -96, y: -70, w: 192, h: 74 }, sweep: [-2.9, 3.4], thickness: 22,
   },
@@ -209,32 +224,32 @@ const PLAYER_ATTACKS = {
 const ARCHER_ATTACKS = {
   a1: {
     name: 'a1', startup: 0.11, active: 0.05, recovery: 0.2, chainAfter: 0.05, next: 'a2', comboIndex: 1,
-    sweep: [0, 0], depth: 14,
+    sweep: [0, 0], depth: LANE,
     shot: { speed: 820, dmg: 12, kb: 160, kbUp: -80, stagger: 0.3 },
   },
   a2: {
     name: 'a2', startup: 0.11, active: 0.05, recovery: 0.2, chainAfter: 0.05, next: 'a3', comboIndex: 2,
-    sweep: [0, 0], depth: 14,
+    sweep: [0, 0], depth: LANE,
     shot: { speed: 820, dmg: 12, kb: 160, kbUp: -80, stagger: 0.3 },
   },
   a3: {
     name: 'a3', startup: 0.3, active: 0.05, recovery: 0.36, chainAfter: 99, next: null, comboIndex: 0, heavy: true,
-    sweep: [0, 0], depth: 14,
+    sweep: [0, 0], depth: LANE,
     shot: { speed: 900, dmg: 20, kb: 420, kbUp: -420, stagger: 0.5, knockdown: true, heavy: true, fire: true, pierce: true },
   },
   air: {
     name: 'air', startup: 0.08, active: 0.05, recovery: 0.24, chainAfter: 99, next: null, comboIndex: 0, air: true,
-    sweep: [0.6, 0.6], depth: 14,
+    sweep: [0.6, 0.6], depth: LANE,
     shot: { speed: 760, dmg: 13, kb: 220, kbUp: -200, stagger: 0.35, knockdown: true, angle: 0.6 },
   },
-  dash: { // running attack: skid to a stop and loose a fan of three arrows across the lanes
-    name: 'dash', startup: 0.1, active: 0.05, recovery: 0.4, chainAfter: 99, next: null, comboIndex: 0,
-    sweep: [0, 0], depth: 14, lunge: 60,
-    shot: { speed: 800, dmg: 11, kb: 280, kbUp: -320, stagger: 0.4, knockdown: true, spread: [-34, 0, 34] },
+  dash: { // running attack: skid to a stop and loose a heavy piercing shot down the lane
+    name: 'dash', startup: 0.12, active: 0.05, recovery: 0.4, chainAfter: 99, next: null, comboIndex: 0,
+    sweep: [0, 0], depth: LANE, lunge: 60,
+    shot: { speed: 900, dmg: 16, kb: 300, kbUp: -340, stagger: 0.4, knockdown: true, pierce: true },
   },
   back: { // a sweeping kick with the bow that clears both sides
     name: 'back', dmg: 11, startup: 0.06, active: 0.16, recovery: 0.4, chainAfter: 99, next: null, comboIndex: 0,
-    knockdown: true, depth: 24, lunge: 0, kb: 340, kbUp: -400, stagger: 0.45, hitstop: 0.06, shake: 0.15, bothSides: true,
+    knockdown: true, depth: LANE, lunge: 0, kb: 340, kbUp: -400, stagger: 0.45, hitstop: 0.06, shake: 0.15, bothSides: true,
     box: { x: -70, y: -60, w: 140, h: 62 }, sweep: [-2.9, 3.4], thickness: 14, slashR: 58,
   },
 };
@@ -245,36 +260,36 @@ const ARCHER_ATTACKS = {
 // which cuts straight through the enemy line.
 const ROGUE_ATTACKS = {
   a1: {
-    name: 'a1', dmg: 8, startup: 0.05, active: 0.17, recovery: 0.16, chainAfter: 0.04, next: 'a2', comboIndex: 1, depth: 16,
+    name: 'a1', dmg: 8, startup: 0.05, active: 0.17, recovery: 0.16, chainAfter: 0.04, next: 'a2', comboIndex: 1, depth: LANE,
     lunge: 90, kb: 110, kbUp: -60, stagger: 0.35, hitstop: 0.03, shake: 0.05,
     hits: [{ at: 0, dur: 0.06 }, { at: 0.09, dur: 0.06 }],
     box: { x: 2, y: -56, w: 62, h: 54 }, sweep: [-1.3, 0.9], sweep2: [1.2, -0.9], thickness: 10, slashR: 44,
   },
   a2: {
-    name: 'a2', dmg: 8, startup: 0.05, active: 0.17, recovery: 0.16, chainAfter: 0.04, next: 'a3', comboIndex: 2, depth: 16,
+    name: 'a2', dmg: 8, startup: 0.05, active: 0.17, recovery: 0.16, chainAfter: 0.04, next: 'a3', comboIndex: 2, depth: LANE,
     lunge: 100, kb: 130, kbUp: -70, stagger: 0.38, hitstop: 0.03, shake: 0.06,
     hits: [{ at: 0, dur: 0.06 }, { at: 0.09, dur: 0.06 }],
     box: { x: 2, y: -58, w: 64, h: 56 }, sweep: [1.1, -1.2], sweep2: [-1.0, 1.1], thickness: 10, slashR: 44,
   },
   a3: { // cross cut: both blades at once
     name: 'a3', dmg: 18, startup: 0.12, active: 0.1, recovery: 0.32, chainAfter: 99, next: null, comboIndex: 0, heavy: true,
-    knockdown: true, depth: 20, lunge: 150, kb: 440, kbUp: -440, stagger: 0.55, hitstop: 0.08, shake: 0.28,
+    knockdown: true, depth: LANE, lunge: 150, kb: 440, kbUp: -440, stagger: 0.55, hitstop: 0.08, shake: 0.28,
     box: { x: -4, y: -64, w: 84, h: 66 }, sweep: [-2.0, 1.2], sweep2: [2.0, -1.2], thickness: 18, slashR: 50, cross: true,
   },
   air: {
     name: 'air', dmg: 14, startup: 0.05, active: 0.14, recovery: 0.2, chainAfter: 99, next: null, comboIndex: 0, air: true,
-    knockdown: true, depth: 20, lunge: 0, kb: 280, kbUp: -360, stagger: 0.4, hitstop: 0.05, shake: 0.1,
+    knockdown: true, depth: LANE, lunge: 0, kb: 280, kbUp: -360, stagger: 0.4, hitstop: 0.05, shake: 0.1,
     box: { x: -16, y: -54, w: 82, h: 110 }, sweep: [-1.4, 2.2], sweep2: [-1.2, 2.0], thickness: 14, slashR: 48,
   },
   dash: { // dash twin strike: lunge through the line, two cuts, untouchable while it lasts
     name: 'dash', dmg: 10, startup: 0.03, active: 0.24, recovery: 0.3, chainAfter: 99, next: null, comboIndex: 0,
-    knockdown: true, iframes: true, depth: 20, lunge: 560, kb: 360, kbUp: -380, stagger: 0.45, hitstop: 0.04, shake: 0.14,
+    knockdown: true, iframes: true, depth: LANE, lunge: 560, kb: 360, kbUp: -380, stagger: 0.45, hitstop: 0.04, shake: 0.14,
     hits: [{ at: 0, dur: 0.1 }, { at: 0.12, dur: 0.1 }],
     box: { x: -14, y: -58, w: 74, h: 58 }, sweep: [-0.6, 0.5], sweep2: [0.6, -0.5], thickness: 12, slashR: 46,
   },
   back: { // blade spin
     name: 'back', dmg: 7, startup: 0.05, active: 0.2, recovery: 0.36, chainAfter: 99, next: null, comboIndex: 0,
-    knockdown: true, depth: 24, lunge: 0, kb: 320, kbUp: -380, stagger: 0.4, hitstop: 0.04, shake: 0.12, bothSides: true,
+    knockdown: true, depth: LANE, lunge: 0, kb: 320, kbUp: -380, stagger: 0.4, hitstop: 0.04, shake: 0.12, bothSides: true,
     hits: [{ at: 0, dur: 0.08 }, { at: 0.1, dur: 0.08 }],
     box: { x: -64, y: -60, w: 128, h: 62 }, sweep: [-2.9, 3.4], sweep2: [0.3, 6.5], thickness: 12, slashR: 50,
   },
@@ -284,12 +299,12 @@ const ROGUE_ATTACKS = {
 const CLASSES = {
   warrior: {
     key: 'warrior', name: 'WARRIOR', weapon: 'sword', attacks: PLAYER_ATTACKS, rest: -2.35,
-    lines: ['the enormous sword.', 'slow, heavy, sweeping.', 'three-hit combo ends in a knockdown.'],
+    lines: ['the enormous sword.', 'slow, heavy, sweeping.', 'the third slash sends a sword wave', 'across every lane.'],
     stats: { maxHp: 100 },
   },
   archer: {
     key: 'archer', name: 'ARCHER', weapon: 'bow', attacks: ARCHER_ATTACKS, rest: 1.05,
-    lines: ['arrows down the lane you stand in.', 'every third shot is a fire arrow:', 'it pierces, and it burns.'],
+    lines: ['arrows down the lane you stand in.', 'every third shot is a fire arrow:', 'it pierces, and it burns.', 'line up: arrows keep to their lane.'],
     stats: { maxHp: 90, walkSpeed: 170, depthSpeed: 118, runSpeed: 325 },
   },
   rogue: {
@@ -308,59 +323,59 @@ const GRAB_CFG = { range: 38, depth: 12, kneeDmg: 8, knees: 2, throwDmg: 20, spl
 const MAGIC_CFG = { baseDmg: 10, perPot: 9, castTime: 1.5, strikeAt: 0.75 };
 
 // ---------------------------------------------------------------- enemies
-// ai: behaviour routine. kbResist: 0 = full knockback, 1 = immovable.
+// behavior: behaviour routine. kbResist: 0 = full knockback, 1 = immovable.
 // superArmor: never staggered or knocked down by normal hits.
 // poise: only staggered by heavy hits (on cooldown). depth: attack depth tolerance.
 const ENEMY_TYPES = {
   seeker: {
-    ai: 'melee', w: 26, h: 46, hp: 30, speed: 105, depthSpeed: 80, accel: 1200,
+    behavior: 'melee', w: 26, h: 46, hp: 30, speed: 105, depthSpeed: 80, accel: 1200,
     range: 62, windup: 0.45, active: 0.12, recovery: 0.5, cooldown: 0.8, step: 140,
     dmg: 10, kb: 260, box: { x: 0, y: -42, w: 60, h: 38 },
   },
   chaser: {
-    ai: 'lunge', w: 30, h: 30, hp: 20, speed: 220, depthSpeed: 150, accel: 1800,
+    behavior: 'lunge', w: 30, h: 30, hp: 20, speed: 220, depthSpeed: 150, accel: 1800,
     lungeRange: 220, windup: 0.36, lungeSpeed: 560, lungeTime: 0.28, recovery: 0.65, cooldown: 0.6,
     dmg: 12, kb: 300, box: { x: -18, y: -32, w: 44, h: 32 },
   },
   brute: {
-    ai: 'heavy', w: 58, h: 84, hp: 100, speed: 62, depthSpeed: 50, accel: 500,
+    behavior: 'heavy', w: 58, h: 84, hp: 100, speed: 62, depthSpeed: 50, accel: 500,
     range: 120, windup: 0.9, active: 0.14, recovery: 1.0, cooldown: 1.0,
     dmg: 25, kb: 420, knockdown: true, depth: 30, box: { x: -6, y: -74, w: 146, h: 80 },
     kbResist: 0.85, superArmor: true, big: true,
   },
   ranged: {
-    ai: 'ranged', w: 24, h: 42, hp: 25, speed: 110, depthSpeed: 90, accel: 1000,
+    behavior: 'ranged', w: 24, h: 42, hp: 25, speed: 110, depthSpeed: 90, accel: 1000,
     keepMin: 200, keepMax: 380, windup: 0.65, recovery: 0.45, cooldown: 1.7,
     projSpeed: 360, dmg: 10, kb: 220,
   },
   flyer: {
-    ai: 'flyer', w: 34, h: 22, hp: 30, speed: 170, depthSpeed: 120, accel: 900, hover: 150,
+    behavior: 'flyer', w: 34, h: 22, hp: 30, speed: 170, depthSpeed: 120, accel: 900, hover: 150,
     windup: 0.55, diveSpeed: 620, diveTime: 0.8, recovery: 0.9, cooldown: 1.4,
     dmg: 14, kb: 300, knockdown: true, depth: 22, box: { x: -22, y: -28, w: 44, h: 32 },
   },
   splitter: {
-    ai: 'melee', w: 36, h: 40, hp: 40, speed: 95, depthSpeed: 70, accel: 1000,
+    behavior: 'melee', w: 36, h: 40, hp: 40, speed: 95, depthSpeed: 70, accel: 1000,
     range: 62, windup: 0.5, active: 0.12, recovery: 0.55, cooldown: 0.8, step: 130,
     dmg: 10, kb: 260, box: { x: 0, y: -38, w: 62, h: 36 },
     split: { type: 'splitling', count: 2 },
   },
   splitling: {
-    ai: 'melee', w: 20, h: 22, hp: 12, speed: 190, depthSpeed: 140, accel: 1800,
+    behavior: 'melee', w: 20, h: 22, hp: 12, speed: 190, depthSpeed: 140, accel: 1800,
     range: 44, windup: 0.3, active: 0.1, recovery: 0.4, cooldown: 0.5, step: 180,
     dmg: 6, kb: 180, box: { x: 0, y: -22, w: 42, h: 22 },
   },
   shielder: {
-    ai: 'shield', w: 32, h: 52, hp: 60, speed: 85, depthSpeed: 70, accel: 800,
+    behavior: 'shield', w: 32, h: 52, hp: 60, speed: 85, depthSpeed: 70, accel: 800,
     range: 70, windup: 0.5, active: 0.14, recovery: 0.8, cooldown: 1.1, bashSpeed: 320,
     turnDelay: 0.55, dmg: 12, kb: 340, box: { x: 6, y: -52, w: 54, h: 50 },
     kbResist: 0.5, noGrab: true,
   },
   assassin: {
-    ai: 'assassin', w: 22, h: 46, hp: 35, speed: 170, depthSpeed: 130, accel: 1600, shadowSpeed: 420,
+    behavior: 'assassin', w: 22, h: 46, hp: 35, speed: 170, depthSpeed: 130, accel: 1600, shadowSpeed: 420,
     windup: 0.42, active: 0.12, dmg: 14, kb: 300, box: { x: 0, y: -44, w: 60, h: 40 },
   },
   elite: {
-    ai: 'elite', w: 42, h: 68, hp: 170, speed: 140, depthSpeed: 100, accel: 1400,
+    behavior: 'elite', w: 42, h: 68, hp: 170, speed: 140, depthSpeed: 100, accel: 1400,
     dmgTaken: 0.8, kbResist: 0.75, poise: 2.5, big: true, noGrab: true,
     moves: {
       volley: { windup: 0.6, recovery: 0.5, dmg: 10, kb: 240, speed: 380 },
@@ -370,7 +385,7 @@ const ENEMY_TYPES = {
   },
   // Not hostile. Carries a sack; every hit shakes loose a pot or food.
   thief: {
-    ai: 'thief', w: 18, h: 30, hp: 2, speed: 150, depthSpeed: 90, accel: 1400, noGrab: true, harmless: true,
+    behavior: 'thief', w: 18, h: 30, hp: 2, speed: 150, depthSpeed: 90, accel: 1400, noGrab: true, harmless: true,
   },
 };
 
@@ -562,6 +577,7 @@ const Sound = {
     this.hiss(0.1, 0.22, 3000, 1.2, 'highpass');
     if (fire) this.hiss(0.5, 0.25, 700, 0.6, 'lowpass', 2400);
   },
+  wave() { this.hiss(0.45, 0.35, 400, 0.8, 'bandpass', 1800); this.tone(140, 60, 0.35, 'sine', 0.25); },
   burn() { this.hiss(0.18, 0.1, 900, 0.7, 'bandpass', 400); },
   grab() { this.hiss(0.08, 0.3, 300, 1, 'lowpass'); this.tone(120, 80, 0.1, 'sine', 0.3); },
   pickup() { this.tone(880, 1320, 0.09, 'triangle', 0.09); this.tone(1320, 1760, 0.12, 'triangle', 0.06); },
@@ -649,6 +665,12 @@ const Input = {
   keyDown: {}, padDown: {}, pressed: {}, released: {},
   anyPressed: false, // any key/button this step (menus)
   padAxis: 0, padAxisZ: 0,
+  // touch: a floating stick on the left half, buttons on the right
+  touchMode: false, touchAxisX: 0, touchAxisZ: 0, touchRun: false,
+  stick: { id: null, ox: 0, oy: 0, x: 0, y: 0 },
+  touchButtons: {}, // touch id -> action
+  toView: null,     // set by the game: client px -> view coords
+  onTap: null,      // set by the game: menu taps
   lastTap: { left: -1, right: -1 }, doubleTap: 0, // set to -1/1 on a double tap
 
   init(target) {
@@ -688,10 +710,73 @@ const Input = {
       this.anyPressed = true;
     });
     target.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    const opts = { passive: false };
+    target.addEventListener('touchstart', (e) => this.touchStart(e), opts);
+    target.addEventListener('touchmove', (e) => this.touchMove(e), opts);
+    target.addEventListener('touchend', (e) => this.touchEnd(e), opts);
+    target.addEventListener('touchcancel', (e) => this.touchEnd(e), opts);
     window.addEventListener('blur', () => {
       this.keyDown = {};
       this._held = {};
     });
+  },
+
+  // ---------------------------------------------------------------- touch
+  touchStart(e) {
+    e.preventDefault();
+    Sound.init();
+    this.touchMode = true;
+    for (const t of e.changedTouches) {
+      const v = this.toView ? this.toView(t.clientX, t.clientY) : { x: t.clientX, y: t.clientY };
+      this.anyPressed = true;
+      if (this.onTap) this.onTap(v.x, v.y);
+      const btn = TouchLayout.hit(v.x, v.y);
+      if (btn) {
+        this.touchButtons[t.identifier] = btn;
+        if (!this.keyDown[btn]) { this.pressed[btn] = true; }
+        this.keyDown[btn] = true;
+      } else if (v.x < VIEW_W * 0.5 && this.stick.id === null) {
+        const s = this.stick;
+        s.id = t.identifier; s.ox = v.x; s.oy = v.y; s.x = v.x; s.y = v.y;
+      }
+    }
+  },
+
+  touchMove(e) {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      if (t.identifier !== this.stick.id) continue;
+      const v = this.toView ? this.toView(t.clientX, t.clientY) : { x: t.clientX, y: t.clientY };
+      const s = this.stick, R = TouchLayout.stickR;
+      let dx = v.x - s.ox, dy = v.y - s.oy;
+      const d = Math.hypot(dx, dy);
+      if (d > R) { dx *= R / d; dy *= R / d; }
+      s.x = s.ox + dx; s.y = s.oy + dy;
+      const px = this.touchAxisX;
+      this.touchAxisX = Math.abs(dx) > R * 0.3 ? sign(dx) : 0;
+      this.touchAxisZ = Math.abs(dy) > R * 0.35 ? sign(dy) : 0;
+      if (this.touchAxisX !== 0 && this.touchAxisX !== px) this.tap(this.touchAxisX > 0 ? 'right' : 'left');
+      // pushing the stick to its rim runs
+      this.touchRun = Math.abs(dx) > R * 0.9;
+    }
+  },
+
+  touchEnd(e) {
+    e.preventDefault();
+    for (const t of e.changedTouches) {
+      if (t.identifier === this.stick.id) {
+        this.stick.id = null;
+        this.touchAxisX = 0; this.touchAxisZ = 0; this.touchRun = false;
+      }
+      const btn = this.touchButtons[t.identifier];
+      if (btn) {
+        delete this.touchButtons[t.identifier];
+        let still = false;
+        for (const id in this.touchButtons) if (this.touchButtons[id] === btn) still = true;
+        if (!still) { this.keyDown[btn] = false; this.released[btn] = true; }
+      }
+    }
   },
 
   pollGamepad() {
@@ -734,12 +819,14 @@ const Input = {
 
   axisZ() {
     const k = (this.isDown('down') ? 1 : 0) - (this.isDown('up') ? 1 : 0);
-    return k !== 0 ? k : this.padAxisZ;
+    if (k !== 0) return k;
+    return this.touchAxisZ || this.padAxisZ;
   },
 
   axisX() {
     const k = (this.keyDown.right ? 1 : 0) - (this.keyDown.left ? 1 : 0);
-    return k !== 0 ? k : this.padAxis;
+    if (k !== 0) return k;
+    return this.touchAxisX || this.padAxis;
   },
 
   endStep() {
@@ -747,6 +834,24 @@ const Input = {
     for (const k in this.released) this.released[k] = false;
     this.anyPressed = false;
     this.doubleTap = 0;
+  },
+};
+
+// On-screen touch controls, in view coordinates (1280 x 720).
+const TouchLayout = {
+  stickR: 80,
+  buttons: [
+    { action: 'attack', label: 'ATTACK', x: 1112, y: 594, r: 64 },
+    { action: 'jump', label: 'JUMP', x: 980, y: 648, r: 46 },
+    { action: 'back', label: 'BACK', x: 1214, y: 472, r: 40 },
+    { action: 'run', label: 'RUN', x: 986, y: 526, r: 40 },
+    { action: 'magic', label: 'MAGIC', x: 1108, y: 446, r: 40 },
+    { action: 'pause', label: 'II', x: 1236, y: 44, r: 26 },
+  ],
+  hit(x, y) {
+    if (!Input.buttonsLive) return null;
+    for (const b of this.buttons) if (Math.hypot(x - b.x, y - b.y) <= b.r + 10) return b.action;
+    return null;
   },
 };
 
@@ -1685,7 +1790,7 @@ class Player {
   updateNormal(dt, mx, mz) {
     const c = this.stats, I = Input;
     // running: double-tap a direction, or hold run (the Rogue's run key dashes instead)
-    const holdRun = !this.cls.dash && I.isDown('run');
+    const holdRun = (!this.cls.dash && I.isDown('run')) || I.touchRun;
     if (I.doubleTap && I.doubleTap === mx) this.running = true;
     if (holdRun && mx !== 0) this.running = true;
     if (mx === 0 || (this.running && mx !== this.runDir && this.runDir !== 0)) this.running = holdRun && mx !== 0;
@@ -1833,6 +1938,7 @@ class Player {
       this.atkT -= a.startup;
       if (!a.air && this.onGround && a.lunge) this.vx = this.facing * a.lunge;
       if (a.iframes) this.invuln = Math.max(this.invuln, a.active + 0.06);
+      if (a.wave) SwordWaves.fire(this.cx + this.facing * 40, this.facing, a.wave);
       if (a.shot) {
         this.fireShot(a.shot);
       } else if (!a.hits) {
@@ -1877,23 +1983,20 @@ class Player {
     }
   }
 
-  // The Archer looses arrows down the lane (a fan across lanes when `spread`).
-  // Light aim assist, decided as the bow is drawn: a level shot settles into
-  // the lane of the nearest enemy in front (if it is close to your own lane),
-  // and tilts upward when that enemy is in the air.
+  // The Archer looses arrows straight down the lane she stands in.
+  // Decided as the bow is drawn. Arrows keep to your lane; the bow only tilts
+  // up when the nearest enemy in front, in your lane, is in the air.
   takeAim(s) {
     this.aimAng = s.angle || 0;
-    this.aimZ = this.z;
-    if (s.angle || (s.spread && s.spread.length > 1)) return;
+    if (s.angle) return;
     let best = 1e9, target = null;
     for (const e of this.g.enemies) {
-      if (!e.active || e.untouchable || e.ai === 'thief' || e.state === 'shadow') continue;
-      const dx = (e.cx - this.cx) * this.facing, dz = e.z - this.z;
-      if (dx < 30 || dx > 520 || Math.abs(dz) > 26) continue;
+      if (!e.active || e.untouchable || e.state === 'shadow') continue;
+      const dx = (e.cx - this.cx) * this.facing;
+      if (dx < 30 || dx > 520 || Math.abs(e.z - this.z) > LANE) continue;
       if (dx < best) { best = dx; target = e; }
     }
     if (!target) return;
-    this.aimZ = target.z;
     const rise = (target.y + target.h * 0.5) - (this.bottom - 28);
     if (rise < -20) this.aimAng = clamp(Math.atan2(rise, best), -0.95, 0);
   }
@@ -1905,7 +2008,7 @@ class Player {
     const vx = this.facing * Math.cos(ang) * s.speed;
     const vy = Math.sin(ang) * s.speed;
     const spread = s.spread || [0];
-    for (const dz of spread) Arrows.fire(x, spread.length > 1 ? this.z : this.aimZ, y, vx, vy, dz * 2.2, s);
+    for (const dz of spread) Arrows.fire(x, this.z, y, vx, vy, dz * 2.2, s);
     Sound.bow(!!s.fire);
     if (s.fire) FX.ring(x, FLOOR_Y + this.z + y, 4, 30, 0.2, false, 2);
   }
@@ -2168,13 +2271,13 @@ class Enemy {
   reset(type, x, z, opts) {
     const c = ENEMY_TYPES[type];
     opts = opts || {};
-    this.type = type; this.c = c; this.ai = c.ai;
+    this.type = type; this.c = c; this.behavior = c.behavior;
     this.w = c.w; this.h = c.h;
     this.x = x - c.w / 2; this.z = clamp(z, 0, DEPTH);
-    this.y = c.ai === 'flyer' ? -c.h - c.hover : -c.h;
+    this.y = c.behavior === 'flyer' ? -c.h - c.hover : -c.h;
     this.vx = opts.vx || 0; this.vy = opts.vy || 0; this.vz = 0;
     if (opts.vy) this.y -= 1;
-    this.onGround = this.ai !== 'flyer'; this.hitWall = 0;
+    this.onGround = this.behavior !== 'flyer'; this.hitWall = 0;
     this.hp = this.maxHp = c.hp;
     this.facing = opts.facing || 1;
     this.t = 0;
@@ -2186,14 +2289,14 @@ class Enemy {
     this.atkActive = false; this.atkHit = false; this.atkDef = null;
     this.atkDmg = 0; this.atkKb = 0; this.atkKbUp = 0; this.atkKnock = false; this.atkDepth = DEPTH_TOL;
     this.cd = rand(0.4, 1.0); this.turnT = 0;
-    this.alpha = this.enterDir ? 1 : 0; this.shieldUp = c.ai === 'shield';
+    this.alpha = this.enterDir ? 1 : 0; this.shieldUp = c.behavior === 'shield';
     this.anim = rand(0, 10); this.bob = rand(0, TAU);
     this.move = null; this.windDur = 0; this.recDur = 0;
     this.stalkDur = rand(1.0, 1.6); this.trailT = 0;
     this.hasToken = false; this.dying = false;
     this.ringOff = rand(0, 70); this.zOff = rand(-60, 60); this.rerollT = rand(1.5, 3);
     this.thrownBy = null; this.fleeing = false;
-    this.burnT = 0; this.burnTick = 0; this.lastArrowId = -1;
+    this.burnT = 0; this.burnTick = 0; this.lastArrowId = -1; this.lastWaveId = -1;
     this.active = true;
     return this;
   }
@@ -2260,7 +2363,7 @@ class Enemy {
   }
 
   defaultState() {
-    switch (this.ai) {
+    switch (this.behavior) {
       case 'flyer': return 'rise';
       case 'assassin': return 'stalk';
       case 'thief': return 'run';
@@ -2284,10 +2387,10 @@ class Enemy {
     switch (this.state) {
       case 'spawn':
         this.alpha = Math.min(1, this.t / this.spawnDur);
-        this.physics(dt, g, this.ai !== 'flyer');
+        this.physics(dt, g, this.behavior !== 'flyer');
         if (this.t >= this.spawnDur) {
           this.alpha = 1;
-          this.setState(this.ai === 'flyer' ? 'hover' : this.ai === 'assassin' ? 'stalk' : this.ai === 'thief' ? 'run' : 'idle');
+          this.setState(this.behavior === 'flyer' ? 'hover' : this.behavior === 'assassin' ? 'stalk' : this.behavior === 'thief' ? 'run' : 'idle');
         }
         return;
       case 'enter': {
@@ -2297,7 +2400,7 @@ class Enemy {
         this.vz = 0;
         this.physics(dt, g, true);
         const inside = this.x > g.cam.x + 20 && this.x + this.w < g.cam.x + g.viewW - 20;
-        if (inside || this.t > 4) this.setState(this.ai === 'thief' ? 'run' : this.ai === 'assassin' ? 'stalk' : 'idle');
+        if (inside || this.t > 4) this.setState(this.behavior === 'thief' ? 'run' : this.behavior === 'assassin' ? 'stalk' : 'idle');
         return;
       }
       case 'grabbed':
@@ -2334,7 +2437,7 @@ class Enemy {
         return;
     }
 
-    if (this.ai === 'thief') { this.aiThief(dt, g); return; }
+    if (this.behavior === 'thief') { this.actThief(dt, g); return; }
 
     // Once the player falls or the fighting ends, enemies stand still.
     if (!p.alive || !g.combatAllowed) {
@@ -2342,7 +2445,7 @@ class Enemy {
       this.releaseToken();
       this.alpha = approach(this.alpha, 1, dt * 2);
       this.friction(dt, 1200);
-      this.physics(dt, g, this.ai !== 'flyer' || this.state === 'recover');
+      this.physics(dt, g, this.behavior !== 'flyer' || this.state === 'recover');
       return;
     }
 
@@ -2350,22 +2453,22 @@ class Enemy {
       this.atkActive = false;
       this.staggerT -= dt;
       this.friction(dt, 1400);
-      const floating = this.ai === 'flyer' && !this.onGround;
+      const floating = this.behavior === 'flyer' && !this.onGround;
       if (floating) this.vy = approach(this.vy, 0, 1400 * dt);
       this.physics(dt, g, !floating);
       if (this.staggerT <= 0) this.setState(this.defaultState());
       return;
     }
 
-    switch (this.ai) {
-      case 'melee': this.aiMelee(dt, g); break;
-      case 'lunge': this.aiLunge(dt, g); break;
-      case 'heavy': this.aiMelee(dt, g); break;
-      case 'ranged': this.aiRanged(dt, g); break;
-      case 'flyer': this.aiFlyer(dt, g); break;
-      case 'shield': this.aiShield(dt, g); break;
-      case 'assassin': this.aiAssassin(dt, g); break;
-      case 'elite': this.aiElite(dt, g); break;
+    switch (this.behavior) {
+      case 'melee': this.actMelee(dt, g); break;
+      case 'lunge': this.actLunge(dt, g); break;
+      case 'heavy': this.actMelee(dt, g); break;
+      case 'ranged': this.actRanged(dt, g); break;
+      case 'flyer': this.actFlyer(dt, g); break;
+      case 'shield': this.actShield(dt, g); break;
+      case 'assassin': this.actAssassin(dt, g); break;
+      case 'elite': this.actElite(dt, g); break;
     }
 
     if (this.atkActive) {
@@ -2377,7 +2480,7 @@ class Enemy {
   }
 
   // ---------------------------------------------------------------- SEEKER / SPLITTER / BRUTE
-  aiMelee(dt, g) {
+  actMelee(dt, g) {
     const c = this.c, p = g.player;
     const dx = p.cx - this.cx, adx = Math.abs(dx), dz = p.z - this.z;
     switch (this.state) {
@@ -2428,7 +2531,7 @@ class Enemy {
   }
 
   // ---------------------------------------------------------------- CHASER
-  aiLunge(dt, g) {
+  actLunge(dt, g) {
     const c = this.c, p = g.player;
     const dx = p.cx - this.cx, adx = Math.abs(dx), dz = p.z - this.z;
     switch (this.state) {
@@ -2471,7 +2574,7 @@ class Enemy {
   }
 
   // ---------------------------------------------------------------- RANGED (axe thrower)
-  aiRanged(dt, g) {
+  actRanged(dt, g) {
     const c = this.c, p = g.player;
     const dx = p.cx - this.cx, adx = Math.abs(dx), dz = p.z - this.z;
     const dir = dx >= 0 ? 1 : -1;
@@ -2512,7 +2615,7 @@ class Enemy {
   }
 
   // ---------------------------------------------------------------- FLYER
-  aiFlyer(dt, g) {
+  actFlyer(dt, g) {
     const c = this.c, p = g.player;
     const dx = p.cx - this.cx, dz = p.z - this.z;
     const hoverY = -this.h - c.hover;
@@ -2572,7 +2675,7 @@ class Enemy {
   }
 
   // ---------------------------------------------------------------- SHIELDER
-  aiShield(dt, g) {
+  actShield(dt, g) {
     const c = this.c, p = g.player;
     const dx = p.cx - this.cx, adx = Math.abs(dx), dz = p.z - this.z;
     // turning is deliberately slow: that is the opening
@@ -2628,7 +2731,7 @@ class Enemy {
   }
 
   // ---------------------------------------------------------------- ASSASSIN
-  aiAssassin(dt, g) {
+  actAssassin(dt, g) {
     const c = this.c, p = g.player;
     const dx = p.cx - this.cx, adx = Math.abs(dx);
     const dir = dx >= 0 ? 1 : -1;
@@ -2707,7 +2810,7 @@ class Enemy {
   }
 
   // ---------------------------------------------------------------- ELITE
-  aiElite(dt, g) {
+  actElite(dt, g) {
     const c = this.c, p = g.player;
     const dx = p.cx - this.cx, adx = Math.abs(dx), dz = p.z - this.z;
     const enraged = this.hp < this.maxHp * 0.5;
@@ -2787,7 +2890,7 @@ class Enemy {
   }
 
   // ---------------------------------------------------------------- THIEF
-  aiThief(dt, g) {
+  actThief(dt, g) {
     const c = this.c;
     if (this.state === 'stagger') {
       this.staggerT -= dt;
@@ -2812,7 +2915,7 @@ class Enemy {
     if (!this.active || this.untouchable) return 'none';
     const c = this.c;
     const dir = this.cx >= fromX ? 1 : -1; // direction the blow pushes us
-    if (this.ai === 'thief') {
+    if (this.behavior === 'thief') {
       this.flashT = 0.1;
       this.hp--;
       g.dropItem(this);
@@ -2823,14 +2926,14 @@ class Enemy {
       return 'hit';
     }
     const fromAbove = fromBottom < this.y + 10;
-    if (!atk.magic && this.ai === 'shield' && this.shieldUp && -dir === this.facing && !fromAbove) {
+    if (!atk.magic && this.behavior === 'shield' && this.shieldUp && -dir === this.facing && !fromAbove) {
       this.vx = dir * 140;
       this.flashT = 0;
       return 'blocked';
     }
     this.hp -= atk.dmg * (c.dmgTaken || 1);
     this.flashT = 0.1;
-    if (this.ai === 'assassin') this.alpha = 1;
+    if (this.behavior === 'assassin') this.alpha = 1;
     this.releaseToken();
     const res = atk.magic ? 0 : (c.kbResist || 0);
     if (this.hp <= 0) { this.die(dir, atk.kb, g); return 'hit'; }
@@ -2860,7 +2963,7 @@ class Enemy {
     this.vz = 0;
     this.y -= 1;
     this.onGround = false;
-    if (this.ai === 'assassin') this.alpha = 1;
+    if (this.behavior === 'assassin') this.alpha = 1;
   }
 
   die(dir, kb, g) {
@@ -2898,7 +3001,7 @@ class Enemy {
       sy = easeOutCubic(k);
       alpha = k;
       ctx.fillStyle = INK;
-      if (this.ai === 'flyer') {
+      if (this.behavior === 'flyer') {
         ctx.lineWidth = 2;
         ctx.strokeStyle = '#000';
         ctx.globalAlpha = k;
@@ -2974,8 +3077,8 @@ class Enemy {
       ctx.stroke();
       // floor footprint of heavy attacks: where on the floor it will land
       let zone = null, depth = DEPTH_TOL;
-      if (this.ai === 'heavy') { zone = c.box; depth = c.depth; }
-      else if (this.ai === 'elite' && this.move === 'slam') { zone = c.moves.slam.box; depth = c.moves.slam.depth; }
+      if (this.behavior === 'heavy') { zone = c.box; depth = c.depth; }
+      else if (this.behavior === 'elite' && this.move === 'slam') { zone = c.moves.slam.box; depth = c.moves.slam.depth; }
       if (zone) {
         placeBox(this.atkBox, this.cx, 0, zone, this.facing);
         ctx.setLineDash([8, 6]);
@@ -2984,7 +3087,7 @@ class Enemy {
         ctx.setLineDash([]);
       }
       // flyer: dashed dive line and a target mark on the floor
-      if (this.ai === 'flyer' && tele > 0.3) {
+      if (this.behavior === 'flyer' && tele > 0.3) {
         ctx.setLineDash([4, 8]);
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -2997,7 +3100,7 @@ class Enemy {
         ctx.stroke();
       }
       // lane attacks: a dotted line along the floor lane they will travel
-      if ((this.ai === 'lunge' || (this.ai === 'elite' && this.move === 'dash')) && tele > 0.2) {
+      if ((this.behavior === 'lunge' || (this.behavior === 'elite' && this.move === 'dash')) && tele > 0.2) {
         ctx.setLineDash([3, 7]);
         ctx.lineWidth = 1.5;
         ctx.beginPath();
@@ -3009,7 +3112,7 @@ class Enemy {
       ctx.globalAlpha = 1;
     }
     // ranged: dotted lane line in the last part of the windup
-    if (this.ai === 'ranged' && this.state === 'windup') {
+    if (this.behavior === 'ranged' && this.state === 'windup') {
       const k = this.t / c.windup;
       if (k > 0.45) {
         ctx.globalAlpha = (k - 0.45) * 1.6;
@@ -3545,7 +3648,7 @@ const Arrows = {
       const tipX = a.x + dir * 10;
       for (const e of g.enemies) {
         if (!e.active || e.untouchable || e.lastArrowId === a.id) continue;
-        if (Math.abs(e.z - a.z) > 16) continue;
+        if (Math.abs(e.z - a.z) > LANE) continue;
         if (tipX < e.x - 4 || tipX > e.x + e.w + 4 || a.y < e.y - 8 || a.y > e.y + e.h + 4) continue;
         e.lastArrowId = a.id;
         const r = e.hit(a.atk, a.x - dir * 60, 0, g);
@@ -3562,7 +3665,7 @@ const Arrows = {
           FX.burst(sx, sy, a.spec.fire ? 10 : 5, 320, { dir: dir, streak: true, grav: 500 });
           Sound.hit(!!a.spec.heavy);
           g.hitstop(a.spec.heavy ? 0.05 : 0.025);
-          if (a.spec.fire && e.ai !== 'thief') { e.burnT = 2.1; e.burnTick = 0.35; }
+          if (a.spec.fire && e.behavior !== 'thief') { e.burnT = 2.1; e.burnTick = 0.35; }
           if (!a.spec.pierce) { a.active = false; break; }
         }
       }
@@ -3587,6 +3690,91 @@ const Arrows = {
       ux /= len; uy /= len;
       if (a.stuck > 0 && a.stuck < 0.3 && Math.floor(a.t * 12) % 2 === 0) continue;
       drawArrowShape(ctx, a.x - ux * 30, y - uy * 30, a.x + ux * 4, y + uy * 4, a.spec.fire && a.stuck <= 0, a.t);
+    }
+  },
+};
+
+// The Warrior's sword wave: a standing crescent of force released by the
+// third slash of the combo. It rolls forward along the floor and, unlike every
+// other attack, it crosses lanes - it strikes anything on the ground it passes.
+const SwordWaves = {
+  pool: new Pool(() => ({ active: false, x: 0, dir: 1, dist: 0, t: 0, spec: null, id: 0, atk: {} }), 6),
+  serial: 0,
+
+  clear() { this.pool.clear(); },
+
+  fire(x, dir, spec) {
+    const w = this.pool.obtain();
+    if (!w) return;
+    w.active = true; w.x = x; w.dir = dir; w.dist = 0; w.t = 0; w.spec = spec; w.id = ++this.serial;
+    const k = w.atk;
+    k.dmg = spec.dmg; k.kb = spec.kb; k.kbUp = spec.kbUp; k.stagger = spec.stagger;
+    k.knockdown = false; k.heavy = false; k.magic = false;
+    Sound.wave();
+  },
+
+  update(dt, g) {
+    for (const w of this.pool.items) {
+      if (!w.active) continue;
+      w.t += dt;
+      const step = w.spec.speed * dt;
+      w.x += w.dir * step;
+      w.dist += step;
+      if (w.dist >= w.spec.range || w.x < g.cam.x - 60 || w.x > g.cam.x + g.viewW + 60) { w.active = false; continue; }
+      if (Math.random() < 0.5) FX.dust(w.x, FLOOR_Y + rand(10, DEPTH - 10), 1, w.dir);
+      for (const e of g.enemies) {
+        if (!e.active || e.untouchable || e.lastWaveId === w.id) continue;
+        if (e.bottom < -90) continue; // it hugs the ground: high flyers pass over it
+        if (e.x + e.w < w.x - 16 || e.x > w.x + 16) continue;
+        e.lastWaveId = w.id;
+        const r = e.hit(w.atk, w.x - w.dir * 60, 0, g);
+        if (r === 'hit') {
+          FX.ring(e.cx, e.screenY - e.h / 2, 4, 36, 0.2, false, 3);
+          Sound.hit(false);
+        } else if (r === 'blocked') {
+          FX.burst(e.cx, e.screenY - e.h / 2, 6, 260, { dir: -w.dir, streak: true });
+          Sound.block();
+        }
+      }
+    }
+  },
+
+  draw(ctx) {
+    for (const w of this.pool.items) {
+      if (!w.active) continue;
+      const k = w.dist / w.spec.range;
+      ctx.globalAlpha = 1 - k * k;
+      ctx.lineJoin = 'round';
+      const d = w.dir, x = w.x, top = FLOOR_Y - 4, bot = FLOOR_Y + DEPTH + 6;
+      // the wave front, laid across the whole floor
+      ctx.beginPath();
+      ctx.moveTo(x, top);
+      ctx.quadraticCurveTo(x + d * 34, (top + bot) / 2, x, bot);
+      ctx.quadraticCurveTo(x + d * 14, (top + bot) / 2, x, top);
+      ctx.closePath();
+      finish(ctx);
+      // standing crescents rising out of it, one per stretch of floor
+      for (let i = 0; i < 4; i++) {
+        const fy = top + (bot - top) * (0.15 + i * 0.24);
+        const h = 34 + 10 * Math.sin(w.t * 20 + i);
+        const bx = x + d * (8 + 10 * Math.sin((i / 3) * Math.PI));
+        ctx.beginPath();
+        ctx.moveTo(bx, fy);
+        ctx.quadraticCurveTo(bx + d * 16, fy - h * 0.5, bx - d * 2, fy - h);
+        ctx.quadraticCurveTo(bx + d * 6, fy - h * 0.5, bx, fy);
+        ctx.closePath();
+        finish(ctx);
+      }
+      // speed lines trailing behind
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const ly = top + (bot - top) * (i + 0.5) / 5;
+        ctx.moveTo(x - d * 10, ly);
+        ctx.lineTo(x - d * (40 + 20 * ((i * 7) % 3)), ly);
+      }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
     }
   },
 };
@@ -3720,6 +3908,8 @@ class Game {
     this.toTitle();
 
     Input.init(canvas);
+    Input.toView = (x, y) => ({ x: (x * this.dpr - this.viewX) / this.viewScale, y: (y * this.dpr - this.viewY) / this.viewScale });
+    Input.onTap = (x, y) => this.onTap(x, y);
     Input.onRawKey = (code) => {
       if (this.debug && code === 'KeyN') this.debugClearWave();
       if (this.debug && code === 'KeyH') { this.player.hp = this.player.maxHp; this.player.pots = PLAYER_CFG.maxPots; }
@@ -3744,6 +3934,7 @@ class Game {
     this.canvas.style.height = h + 'px';
     const s = Math.min(w / VIEW_W, h / VIEW_H);
     this.viewScale = s * dpr;
+    this.dpr = dpr;
     this.viewX = (w - VIEW_W * s) / 2 * dpr;
     this.viewY = (h - VIEW_H * s) / 2 * dpr;
   }
@@ -3791,6 +3982,7 @@ class Game {
     this.enemyPool.clear();
     Projectiles.clear();
     Arrows.clear();
+    SwordWaves.clear();
     Items.clear();
     FX.clear();
     this.waves.def = null;
@@ -3877,6 +4069,7 @@ class Game {
 
   // ------------------------------------------------------------ step
   step(dt) {
+    Input.buttonsLive = this.pausable() || this.paused;
     if (Input.pressed.pause && this.pausable()) this.paused = !this.paused;
     if (this.paused) {
       if (Input.pressed.confirm) this.paused = false;
@@ -3995,6 +4188,7 @@ class Game {
       this.resolveThrownBodies();
       Projectiles.update(dt, this);
       Arrows.update(dt, this);
+      SwordWaves.update(dt, this);
       this.updateBurns(dt);
     }
     this.resolvePlayerHits();
@@ -4004,7 +4198,7 @@ class Game {
 
   separateEnemies() {
     const E = this.enemies;
-    const busy = (e) => !e.active || e.ai === 'flyer' || e.ai === 'thief' || e.untouchable || e.state === 'shadow' || e.state === 'attack';
+    const busy = (e) => !e.active || e.behavior === 'flyer' || e.behavior === 'thief' || e.untouchable || e.state === 'shadow' || e.state === 'attack';
     for (let i = 0; i < E.length; i++) {
       const a = E[i];
       if (busy(a)) continue;
@@ -4100,8 +4294,8 @@ class Game {
     for (const t of E) {
       if (!t.active || t.state !== 'thrown') continue;
       for (const o of E) {
-        if (o === t || !o.active || o.ai === 'thief' || o.lastThrowId === t.throwId) continue;
-        if (Math.abs(o.z - t.z) > 22 || !rectsOverlap(t, o)) continue;
+        if (o === t || !o.active || o.behavior === 'thief' || o.lastThrowId === t.throwId) continue;
+        if (Math.abs(o.z - t.z) > LANE || !rectsOverlap(t, o)) continue;
         o.lastThrowId = t.throwId;
         const r = o.hit({ dmg: GRAB_CFG.splashDmg, kb: 320, kbUp: -420, knockdown: true, heavy: true, magic: true, stagger: 0.4 }, t.cx, t.bottom, this);
         if (r === 'hit') {
@@ -4155,7 +4349,7 @@ class Game {
     const targets = [];
     const p = this.player;
     for (const e of this.enemies) {
-      if (!e.active || e.dying || e.ai === 'thief') continue;
+      if (!e.active || e.dying || e.behavior === 'thief') continue;
       if (e.cx < this.cam.x - 20 || e.cx > this.cam.x + this.viewW + 20) continue;
       targets.push(e);
     }
@@ -4280,11 +4474,11 @@ class Game {
     if (!e) return false;
     const p = this.player, vw = this.viewW, cx = this.cam.x;
     let z = rand(10, DEPTH - 10);
-    if (c.ai === 'flyer') {
+    if (c.behavior === 'flyer') {
       const x = p.cx > cx + vw / 2 ? cx + rand(60, vw * 0.35) : cx + vw - rand(60, vw * 0.35);
       e.reset(type, x, z, { facing: p.cx >= x ? 1 : -1 });
       Sound.spawn();
-    } else if (c.ai === 'assassin' || Math.random() < 0.3) {
+    } else if (c.behavior === 'assassin' || Math.random() < 0.3) {
       // rise out of the ground somewhere not too close
       let x = cx + vw / 2;
       for (let tries = 0; tries < 12; tries++) {
@@ -4339,7 +4533,7 @@ class Game {
       p.revive();
       // standing back up blasts nearby enemies off their feet
       for (const e of this.enemies) {
-        if (!e.active || e.untouchable || e.ai === 'thief') continue;
+        if (!e.active || e.untouchable || e.behavior === 'thief') continue;
         const d = Math.hypot(e.cx - p.cx, (e.z - p.z) * 1.5);
         if (d < 180) e.launch(e.cx >= p.cx ? 1 : -1, 320, -420);
       }
@@ -4358,7 +4552,7 @@ class Game {
     w.queue.length = 0;
     w.phase = w.def.phases.length - 1;
     w.spawned = w.required;
-    for (const e of this.enemies) if (e.active && e.ai !== 'thief') e.active = false;
+    for (const e of this.enemies) if (e.active && e.behavior !== 'thief') e.active = false;
     w.alive = 0;
     w.defeated = w.required;
   }
@@ -4457,6 +4651,7 @@ class Game {
     }
 
     this.drawHUD(ctx);
+    if (Input.touchMode) this.drawTouch(ctx);
     this.drawOverlayText(ctx);
 
     if (this.fadeIn > 0) {
@@ -4466,6 +4661,7 @@ class Game {
       ctx.globalAlpha = 1;
     }
     if (this.paused) this.drawPause(ctx);
+    if (Input.touchMode) this.drawRotateHint(ctx);
     ctx.restore();
 
     // Night inverts the world: white silhouettes in a black land.
@@ -4527,6 +4723,7 @@ class Game {
 
     Projectiles.draw(ctx);
     Arrows.draw(ctx);
+    SwordWaves.draw(ctx);
     this.drawMagic(ctx);
     FX.drawFront(ctx);
     if (doorShown) this.drawDoorLight(ctx);
@@ -4556,7 +4753,7 @@ class Game {
       ctx.fill();
     };
     for (const e of this.enemies) {
-      if (!e.active || e.state === 'shadow' || e.ai === 'thief' || e.dying) continue;
+      if (!e.active || e.state === 'shadow' || e.behavior === 'thief' || e.dying) continue;
       chevron(e.cx, e.screenY - e.h / 2, !!e.c.big);
     }
     if (this.state === STATE.DOOR && this.doorRise > 0.3) chevron(this.stage.door.x, FLOOR_Y - 60, true);
@@ -4752,7 +4949,9 @@ class Game {
       this.text('THE ENDLESS MARCH', cx, 140, 60, { weight: 300, spacing: 16, align: 'center' });
       this.text('JOURNEY TO THE END', cx, 182, 18, { weight: 400, spacing: 12, align: 'center' });
       ctx.globalAlpha = a * (0.45 + 0.35 * Math.sin(this.time * 2.5));
-      this.text('press any key', cx, 226, 15, { spacing: 4, align: 'center' });
+      this.text(Input.touchMode ? 'tap to begin' : 'press any key', cx, 226, 15, { spacing: 4, align: 'center' });
+      ctx.globalAlpha = a * 0.5;
+      this.text('v' + GAME_VERSION, 16, 24, 11, { spacing: 2 });
       if (window.SEEK_TEST_BUILD) {
         ctx.globalAlpha = a * 0.6;
         this.text('TEST BUILD   ·   N  skip wave   ·   H  heal + fill magic', cx, 30, 11, { spacing: 2, align: 'center' });
@@ -4858,8 +5057,56 @@ class Game {
       }
     });
     ctx.globalAlpha = 0.45 + 0.35 * Math.sin(t * 2.5);
-    this.text('← →  choose        X / SPACE / ENTER  begin the march', cx, VIEW_H - 22, 13, { spacing: 3, align: 'center' });
+    this.text(Input.touchMode ? 'tap a path to choose it - tap it again to begin the march' : '← →  choose        X / SPACE / ENTER  begin the march', cx, VIEW_H - 22, 13, { spacing: 3, align: 'center' });
     ctx.globalAlpha = 1;
+  }
+
+  // Menu taps on touch screens.
+  onTap(x, y) {
+    if (this.state !== STATE.SELECT || this.stateT < 0.3) return;
+    const col = x < VIEW_W / 2 - 170 ? 0 : x > VIEW_W / 2 + 170 ? 2 : 1;
+    if (col === this.selIndex) Input.pressed.confirm = true;
+    else { this.selIndex = col; Sound.pickup(); }
+  }
+
+  // On-screen stick and buttons, drawn in the game's outline style.
+  drawTouch(ctx) {
+    ctx.save();
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = INK;
+    if (Input.buttonsLive) {
+      const s = Input.stick, R = TouchLayout.stickR;
+      const ox = s.id !== null ? s.ox : 170, oy = s.id !== null ? s.oy : 560;
+      ctx.globalAlpha = s.id !== null ? 0.8 : 0.35;
+      ctx.fillStyle = PAPER;
+      ctx.beginPath(); ctx.arc(ox, oy, R, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(s.id !== null ? s.x : ox, s.id !== null ? s.y : oy, 30, 0, TAU);
+      ctx.fillStyle = s.id !== null ? INK : PAPER;
+      ctx.fill(); ctx.stroke();
+      for (const b of TouchLayout.buttons) {
+        const down = Input.keyDown[b.action];
+        ctx.globalAlpha = down ? 0.9 : 0.5;
+        ctx.fillStyle = down ? INK : PAPER;
+        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill(); ctx.stroke();
+        let label = b.label;
+        if (b.action === 'run' && this.player.cls.dash) label = 'DASH';
+        ctx.globalAlpha = down ? 1 : 0.75;
+        this.text(label, b.x, b.y + 4, b.r > 50 ? 13 : 10, { weight: 700, spacing: 1, align: 'center', color: down ? PAPER : INK });
+      }
+    }
+    ctx.restore();
+  }
+
+  // Portrait phones: ask for landscape (drawn above everything else).
+  drawRotateHint(ctx) {
+    if (window.innerHeight > window.innerWidth) {
+      ctx.fillStyle = PAPER;
+      ctx.globalAlpha = 0.9;
+      ctx.fillRect(0, 250, VIEW_W, 200);
+      ctx.globalAlpha = 1;
+      this.text('TURN YOUR DEVICE SIDEWAYS', VIEW_W / 2, 350, 34, { weight: 300, spacing: 10, align: 'center' });
+      this.text('the march is played in landscape', VIEW_W / 2, 390, 16, { spacing: 3, align: 'center' });
+    }
   }
 
   drawPause(ctx) {
@@ -4869,6 +5116,7 @@ class Game {
     ctx.globalAlpha = 1;
     const cx = VIEW_W / 2;
     this.text('PAUSED', cx, 210, 34, { weight: 300, spacing: 16, align: 'center' });
+    this.text('v' + GAME_VERSION, 16, 24, 11, { spacing: 2 });
     const lines = [
       'MOVE   ARROWS / WASD   (up and down walk into and out of the screen)',
       'RUN   double-tap ← or →,  or hold SHIFT / C      ROGUE: SHIFT / C dashes (untouchable), attack out of it: twin strike',
@@ -4878,6 +5126,7 @@ class Game {
       'GRAB & THROW   attack point-blank: knee, knee, then throw',
       'BACK ATTACK   F / RIGHT CLICK   or JUMP + ATTACK together - hits both sides',
       'MAGIC   V / Q   spends every pot you carry - more pots, bigger spell',
+      'LANES   you only hit what shares your lane - except the WARRIOR\'s sword wave (third slash)',
       'ARCHER   every third shot is a fire arrow      ROGUE   every strike cuts twice',
       'MUTE   M',
     ];
@@ -4890,6 +5139,12 @@ window.addEventListener('load', () => {
   window.SEEK = new Game(document.getElementById('game'));
 });
 
+</script>
+<script>
+  // Installable / offline when served over http(s); harmless when opened as a file.
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !window.NO_SW) {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  }
 </script>
 </body>
 </html>

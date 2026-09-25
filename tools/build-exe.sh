@@ -31,6 +31,8 @@ mv desktop/launcher.exe "$OUT/$NAME.exe"
 cp index.html "$OUT/game/"
 cp js/*.js "$OUT/game/js/"
 cp desktop/winres/icon.png "$OUT/game/icon.png"
+cp manifest.webmanifest "$OUT/game/"
+mkdir -p "$OUT/game/icons" && cp icons/*.png "$OUT/game/icons/"
 cat > "$OUT/README.txt" <<'TXT'
 THE ENDLESS MARCH: JOURNEY TO THE END
 
@@ -63,6 +65,10 @@ CONTROLS
   Grab & throw .... attack an enemy point-blank
   Magic ........... V / Q (spends every pot you carry)
   Pause ........... P / Esc        Mute ... M
+
+THE LANE RULE
+  You only hit what shares your lane. The Warrior's sword wave (third slash)
+  is the one attack that crosses lanes.
   Gamepads work too.
 TXT
 

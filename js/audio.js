@@ -106,6 +106,7 @@ const Sound = {
     this.hiss(0.1, 0.22, 3000, 1.2, 'highpass');
     if (fire) this.hiss(0.5, 0.25, 700, 0.6, 'lowpass', 2400);
   },
+  wave() { this.hiss(0.45, 0.35, 400, 0.8, 'bandpass', 1800); this.tone(140, 60, 0.35, 'sine', 0.25); },
   burn() { this.hiss(0.18, 0.1, 900, 0.7, 'bandpass', 400); },
   grab() { this.hiss(0.08, 0.3, 300, 1, 'lowpass'); this.tone(120, 80, 0.1, 'sine', 0.3); },
   pickup() { this.tone(880, 1320, 0.09, 'triangle', 0.09); this.tone(1320, 1760, 0.12, 'triangle', 0.06); },

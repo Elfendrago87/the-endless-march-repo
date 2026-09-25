@@ -1,7 +1,9 @@
-// Draws the app icon: the outlined greatsword on white. Writes a 256px PNG.
+// Draws the app icon: the outlined greatsword on white.
+// Usage: icongen out.png [size]   (default 256px)
 package main
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -23,7 +25,10 @@ func inPoly(p pt, poly []pt) bool {
 }
 
 func main() {
-	const n = 256
+	n := 256
+	if len(os.Args) > 2 {
+		fmt.Sscan(os.Args[2], &n)
+	}
 	// sword along the diagonal, point up-right, in unit space
 	ang := -math.Pi / 4
 	dx, dy := math.Cos(ang), math.Sin(ang)
@@ -63,7 +68,7 @@ func main() {
 			black, inside := 0, 0
 			for sy := 0; sy < ss; sy++ {
 				for sx := 0; sx < ss; sx++ {
-					p := pt{(float64(x) + (float64(sx)+0.5)/ss) / n, (float64(y) + (float64(sy)+0.5)/ss) / n}
+					p := pt{(float64(x) + (float64(sx)+0.5)/ss) / float64(n), (float64(y) + (float64(sy)+0.5)/ss) / float64(n)}
 					// rounded white tile with a black rim
 					qx, qy := math.Max(math.Abs(p.x-0.5)-0.36, 0), math.Max(math.Abs(p.y-0.5)-0.36, 0)
 					d := math.Hypot(qx, qy)
