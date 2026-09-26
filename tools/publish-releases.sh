@@ -23,6 +23,12 @@ while read -r tag sha; do
   fi
 
   if gh release view "$tag" >/dev/null 2>&1; then
+    if [[ "$(gh api "repos/{owner}/{repo}/releases/tags/$tag" --jq .immutable)" == "true" ]]; then
+      # GitHub locks an immutable release's files; leave it alone
+      echo "::warning::$tag is an immutable release; its files can't be changed, skipped"
+      rm -f "$notes"
+      continue
+    fi
     gh release edit "$tag" --title "$v: $title" --notes-file "$notes" >/dev/null
     keep=" "
     for f in "${files[@]}"; do keep+="$(basename "$f") "; done
