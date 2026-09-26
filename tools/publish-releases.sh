@@ -19,7 +19,7 @@ while read -r tag sha; do
   [[ -e "${files[0]}" ]] || files=()
   if (( ${#files[@]} )); then
     if [[ "${files[0]}" == *.exe ]]; then
-      printf '\n**Download:** run the `.exe`. Nothing to install.\n' >> "$notes"
+      printf '\n**Download:** run the `.exe`. It is the whole game: nothing to unzip or install.\n' >> "$notes"
     else
       printf '\n**Download:** unzip the Windows build and run the `.exe`. Nothing to install.\n' >> "$notes"
     fi
@@ -27,6 +27,15 @@ while read -r tag sha; do
     printf '\nThis version has no Windows build.\n' >> "$notes"
   fi
 
+  # a release whose tag no longer matches the listed commit is recreated
+  if gh release view "$tag" >/dev/null 2>&1; then
+    at=$(gh api "repos/{owner}/{repo}/git/ref/tags/$tag" --jq .object.sha)
+    immutable=$(gh api "repos/{owner}/{repo}/releases/tags/$tag" --jq .immutable)
+    if [[ "$at" != "$sha" && "$immutable" != "true" ]]; then
+      gh release delete "$tag" --yes --cleanup-tag
+      echo "$tag: moved from ${at:0:7} to ${sha:0:7}, recreating"
+    fi
+  fi
   if gh release view "$tag" >/dev/null 2>&1; then
     if [[ "$(gh api "repos/{owner}/{repo}/releases/tags/$tag" --jq .immutable)" == "true" ]]; then
       # GitHub locks an immutable release's files; leave it alone

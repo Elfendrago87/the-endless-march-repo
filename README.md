@@ -14,20 +14,13 @@ Play with the keyboard, the mouse or a gamepad.
 
 ### Windows
 
-Download `dist/The-Endless-March-Windows.zip`, unzip it, and double-click **The Endless March.exe**. There's nothing to install. The unzipped folder looks like this:
+Download **The-Endless-March.exe** (in `dist/`, or from the Releases page) and double-click it. That one file is the whole game: there's nothing to unzip or install.
 
-```
-The Endless March/
-  The Endless March.exe     the launcher
-  game/                     the game's files (index.html, js/, icon.png)
-  README.txt                how to play
-```
-
-The launcher serves the `game/` folder on 127.0.0.1 and opens it in its own window: Microsoft Edge (built into Windows 10 and 11) in app mode, or Chrome if Edge is missing, or your default browser as a last resort. Closing the window closes the program, and F11 toggles fullscreen. Keep `game/` next to the exe. The exe also carries a built-in single-file copy of the game, so it still runs if it gets separated from the folder.
+The executable serves the game (built into it) on 127.0.0.1 and opens it in its own window: Microsoft Edge (built into Windows 10 and 11) in app mode, or Chrome if Edge is missing, or your default browser as a last resort. Closing the window closes the program, and F11 toggles fullscreen.
 
 The executable isn't code-signed, so Windows SmartScreen may warn about it the first time. Choose **More info → Run anyway**.
 
-The launcher's source is in `desktop/`, a small Go program. To rebuild the bundle and the zip (needs Go 1.24+ and Node; it builds from Linux, macOS or Windows):
+The launcher's source is in `desktop/`, a small Go program. To rebuild `dist/The-Endless-March.exe` (needs Go 1.24+ and Node; it builds from Linux, macOS or Windows):
 
 ```sh
 ./tools/build-exe.sh

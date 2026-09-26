@@ -1,6 +1,5 @@
 // Bundles index.html and every js/*.js script into one self-contained HTML
-// file: the copy built into the Windows launcher, used if its game/ folder is
-// missing. Called by tools/build-exe.sh.
+// file, which is built into the Windows executable. Called by tools/build-exe.sh.
 //   node tools/build.js   -> desktop/game.html
 const fs = require('fs');
 const path = require('path');

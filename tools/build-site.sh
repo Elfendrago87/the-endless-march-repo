@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Rebuilds the parts of the website (docs/) that come from the game itself:
-#   docs/downloads/<version>/   that version's Windows download
+#   docs/downloads/<version>/   that version's Windows download (.exe or zip)
 #   docs/img/figures/           the game's drawings (tools/site/render-figures.js)
 #   docs/img/shots/, docs/media/  screenshots and recorded demos (tools/site/capture.js)
 # Screenshots and demos are recorded from each version's game files, unpacked
@@ -25,7 +25,11 @@ for v in $VERSIONS; do
   get() { git cat-file -e "$v:$1" 2>/dev/null && git show "$v:$1" > "$dl/$2" || true; }
   case "$n" in
     0.3.0) get dist/SEEK.exe "SEEK-$n.exe" ;;
-    *) get dist/The-Endless-March-Windows.zip "The-Endless-March-$n-Windows.zip" ;;
+    *)
+      # a single .exe from 0.8.0, a zipped folder before that
+      get dist/The-Endless-March.exe "The-Endless-March-$n.exe"
+      [[ -s "$dl/The-Endless-March-$n.exe" ]] || get dist/The-Endless-March-Windows.zip "The-Endless-March-$n-Windows.zip"
+      ;;
   esac
   find "$dl" -type f -empty -delete
   rmdir "$dl" 2>/dev/null || true

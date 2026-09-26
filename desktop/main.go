@@ -1,15 +1,11 @@
 // The Endless March: Journey to the End - desktop launcher.
 //
-// The launcher ships next to a `game/` folder holding the game's files
-// (index.html + js/). On launch it serves that folder from 127.0.0.1 and opens
-// it in a dedicated app window
+// The whole game is built into this one executable. On launch it serves the
+// game from 127.0.0.1 and opens it in a dedicated app window
 // (Microsoft Edge / Chrome / Chromium in --app mode, with its own profile so it
 // behaves like a standalone program). The launcher exits when that window
 // closes. If no Chromium-based browser is found, the game opens in the default
 // browser instead and the launcher exits once the page stops checking in.
-//
-// A single-file copy of the game is also embedded, so the executable still
-// works if it is moved away from its `game/` folder.
 package main
 
 import (
@@ -27,6 +23,9 @@ import (
 
 //go:embed game.html
 var embeddedHTML string
+
+//go:embed winres/icon.png
+var iconPNG []byte
 
 // Injected into the page: keeps the launcher alive while the game is open and
 // lets F11 toggle fullscreen.
@@ -46,29 +45,8 @@ func inject(html string) string {
 	return strings.Replace(html, "</body>", launcherScript+"\n</body>", 1)
 }
 
-// gameDir returns the `game/` folder beside the executable, if it holds the game.
-func gameDir() string {
-	exe, err := os.Executable()
-	if err != nil {
-		return ""
-	}
-	if real, err := filepath.EvalSymlinks(exe); err == nil {
-		exe = real
-	}
-	dir := filepath.Join(filepath.Dir(exe), "game")
-	if exists(filepath.Join(dir, "index.html")) {
-		return dir
-	}
-	return ""
-}
-
 func main() {
-	dir := gameDir()
-	embedded := inject(embeddedHTML)
-	var files http.Handler
-	if dir != "" {
-		files = http.FileServer(http.Dir(dir))
-	}
+	page := inject(embeddedHTML)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -80,22 +58,16 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
-		if r.URL.Path == "/" || r.URL.Path == "/index.html" {
-			page := embedded
-			if dir != "" {
-				if b, err := os.ReadFile(filepath.Join(dir, "index.html")); err == nil {
-					page = inject(string(b))
-				}
-			}
+		switch r.URL.Path {
+		case "/", "/index.html":
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			fmt.Fprint(w, page)
-			return
-		}
-		if files == nil {
+		case "/icon.png":
+			w.Header().Set("Content-Type", "image/png")
+			w.Write(iconPNG)
+		default:
 			http.NotFound(w, r)
-			return
 		}
-		files.ServeHTTP(w, r)
 	})
 	mux.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
 		lastPing.Store(time.Now().UnixNano())

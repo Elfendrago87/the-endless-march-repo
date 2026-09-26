@@ -2,7 +2,5 @@
 desktop/game.html
 desktop/*.syso
 desktop/launcher.exe
-# the unpacked bundle; the zip is committed instead
-dist/The Endless March/
 # scratch output (e.g. the website's playable copies used to record demos)
 build/
