@@ -18,7 +18,11 @@ while read -r tag sha; do
   files=(docs/downloads/"$v"/*)
   [[ -e "${files[0]}" ]] || files=()
   if (( ${#files[@]} )); then
-    printf '\n**Download:** unzip the Windows build and run the `.exe`. Nothing to install.\n' >> "$notes"
+    if [[ "${files[0]}" == *.exe ]]; then
+      printf '\n**Download:** run the `.exe`. Nothing to install.\n' >> "$notes"
+    else
+      printf '\n**Download:** unzip the Windows build and run the `.exe`. Nothing to install.\n' >> "$notes"
+    fi
   else
     printf '\nThis version has no Windows build.\n' >> "$notes"
   fi
