@@ -19,6 +19,7 @@ while read -r tag sha notes rest; do
   read -ra specs <<< "$rest"
   rm -rf "${stage:?}"/*
   names=()
+  title=
   for spec in "${specs[@]}"; do
     src="${spec%%=*}"; name="${spec#*=}"
     [[ "$spec" == *=* ]] || name=$(basename "$src")
@@ -34,13 +35,14 @@ while read -r tag sha notes rest; do
       continue
     fi
     if [[ "$at" != "$sha" ]]; then
+      title=$(gh release view "$tag" --json name --jq .name)
       gh release delete "$tag" --yes --cleanup-tag
       echo "$tag: moved from ${at:0:7} to ${sha:0:7}, recreating"
     fi
   fi
 
   if ! gh release view "$tag" >/dev/null 2>&1; then
-    gh release create "$tag" --target "$sha" --title "$(sed -n '1s/^# //p' "$notes") ${tag#v}" --notes-file "$notes" "${names[@]/#/$stage/}"
+    gh release create "$tag" --target "$sha" --title "${title:-$(sed -n '1s/^# //p' "$notes") ${tag#v}}" --notes-file "$notes" "${names[@]/#/$stage/}"
     echo "$tag: released"
     continue
   fi

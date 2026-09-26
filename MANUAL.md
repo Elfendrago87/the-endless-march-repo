@@ -18,7 +18,7 @@ This is the complete manual: how to run the game, how it plays, the three classe
 
 The `.exe` isn't code-signed, so Windows SmartScreen may warn you the first time. Choose **More info → Run anyway**.
 
-The title screen shows the game's own build number, **v0.8.0**.
+The title screen shows the version, **v0.0.1**.
 
 ## Controls
 
@@ -227,7 +227,7 @@ The same road, told in chapters, with almost no words. It adds places, not power
 
 ## How the game got here
 
-This is the first public release. Before it, the game went through these builds; the full notes are in the attached changelog.
+This is the first public release. Before it, the game went through these development builds; the full notes are in the attached changelog.
 
 | Build | What it added |
 |---|---|
@@ -239,7 +239,7 @@ This is the first public release. Before it, the game went through these builds;
 | 0.5.0 | The Archer and the Rogue, and the class select screen. |
 | 0.6.0 | The lane rule and the Warrior's sword wave. |
 | 0.7.0 | Ledges, power blocks, powerups, rage, health bars. |
-| 0.8.0 | Windows only, shipped as a single `.exe`. This release. |
+| **0.0.1** | This release (developed as build 0.8.0): Windows only, shipped as a single `.exe`. |
 
 ## Files in this release
 

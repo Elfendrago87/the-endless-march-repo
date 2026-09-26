@@ -17,7 +17,7 @@ const launchOpts = process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM
 // each version's game files, unpacked by tools/build-site.sh (not published)
 const playUrl = (v, q) => 'file://' + path.join(root, 'build', 'site-play', v, 'index.html') + (q ? '?' + q : '');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const CURRENT = '0.8.0';
+const CURRENT = '0.8.0'; // the build released as 0.0.1
 
 // A bot that plays any version. Injected into the page; drives Input directly.
 function installBot() {

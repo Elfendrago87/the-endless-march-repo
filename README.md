@@ -8,7 +8,7 @@ An outlined figure with an enormous sword walks a long white road and fights ten
 
 ## Play
 
-The current version is **0.8.0**. The game is made for Windows. See [CHANGELOG.md](CHANGELOG.md) for every version. The game is published on the repository's **Releases** page as release **0.0.1** (game build 0.8.0): the `.exe`, the full manual ([MANUAL.md](MANUAL.md)), the changelog and the website for offline reading. `.github/workflows/releases.yml` keeps it in sync from `tools/releases.txt`.
+The current version is **0.0.1**, the first release. The game is made for Windows. See [CHANGELOG.md](CHANGELOG.md) for every version. The game is published on the repository's **Releases** page as release **0.0.1**: the `.exe`, the full manual ([MANUAL.md](MANUAL.md)), the changelog and the website for offline reading. `.github/workflows/releases.yml` keeps it in sync from `tools/releases.txt`.
 
 Play with the keyboard, the mouse or a gamepad.
 

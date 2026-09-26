@@ -1,16 +1,16 @@
 # Changelog
 
-Every build of the game, newest first. The first public release, **0.0.1**, is build 0.8.0; the builds before it are tagged in git (`v0.1.0` … `v0.8.0`).
+Every build of the game, newest first. **0.0.1** is the first public release. The development builds before it are numbered 0.1.0 to 0.7.0 and tagged in git (`v0.1.0` … `v0.7.0`); 0.0.1 was developed as build 0.8.0, tagged `v0.8.0`.
 
 The game started out under the working title **SEEK** and was renamed **The Endless March: Journey to the End** in 0.4.0.
 
 ---
 
-## 0.8.0 (2026-09-26): Windows only
+## 0.0.1 (2026-09-26): First release, Windows only
 
-The game is now made for Windows only, and ships as a single file.
+The first public release. It was developed as build 0.8.0 and renumbered 0.0.1; the title screen now shows **v0.0.1**. The game is now made for Windows only, and ships as a single file.
 
-- **One `.exe`.** The download is now just `The-Endless-March-0.8.0.exe`, with the whole game built in: no zip, no `game/` folder, nothing to install. Run it and the game opens in its own window.
+- **One `.exe`.** The download is now just `The-Endless-March-0.0.1.exe`, with the whole game built in: no zip, no `game/` folder, nothing to install. Run it and the game opens in its own window.
 - **Removed the Android app, the iPhone and iPad versions and the touch controls.** The on-screen stick and buttons, the "turn your device sideways" notice, the home-screen web-app files (manifest, offline cache, app icons) and the Android and iOS projects and build scripts are gone.
 - **Removed the browser versions:** the single-file HTML build, its test build, and the playable copies and web downloads on the website.
 - The website and the GitHub releases now offer the Windows download only (0.3.0 onwards; a zip for 0.4.0 to 0.7.0). Versions 0.1.0 to 0.2.1 had no Windows build, so their releases carry the source only.
