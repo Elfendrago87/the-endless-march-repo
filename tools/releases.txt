@@ -1,9 +1,5 @@
-v0.1.0 71dd2b6260c84f0f0aaeb8936209429088036c55
-v0.2.0 3fbd736861aec469d069a69ecca6bee990f6697a
-v0.2.1 6f5dd009582178bfc231b781a2eb5fd4d09850ef
-v0.3.0 7df8ad8b2fd2aab1492d809f90d95214f4f3e9b7
-v0.4.0 106a2ab85b95cf307be0c9074bbca73aac8eba04
-v0.5.0 27ebac8be1871976da36a5bd72f31e2fc2c659be
-v0.6.0 9747ccdb8e3e9fc41b051aa145aa637601665734
-v0.7.0 b4836282725d868d58d6e7bdc3d92d25da81512c
-v0.8.0 e02337e55caab8f6fdbb746c0f7275077c0453c1
+# The GitHub releases, one per line:
+#   tag  commit  notes-file  attachment...
+# An attachment is a path, or path=name to publish it under another name.
+# build/release/The-Endless-March-Website.zip is made by tools/publish-releases.sh.
+v0.0.1 4089d955a4e643c7076aa88815346296c6536b6b MANUAL.md dist/The-Endless-March.exe=The-Endless-March-0.0.1.exe MANUAL.md=The-Endless-March-Manual.md CHANGELOG.md=The-Endless-March-Changelog.md build/release/The-Endless-March-Website.zip

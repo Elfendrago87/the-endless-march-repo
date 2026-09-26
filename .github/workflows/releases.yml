@@ -1,13 +1,18 @@
 name: Releases
 
-# Publishes each version listed in tools/releases.txt as a GitHub release
-# (tag, changelog notes and builds). Safe to re-run: existing releases are skipped.
+# Publishes the releases listed in tools/releases.txt (notes and attachments),
+# and keeps them in sync when the game, the manual, the changelog or the
+# website change. Safe to re-run.
 on:
   push:
     paths:
       - tools/releases.txt
       - tools/publish-releases.sh
       - .github/workflows/releases.yml
+      - dist/The-Endless-March.exe
+      - MANUAL.md
+      - CHANGELOG.md
+      - docs/**
   workflow_dispatch:
 
 permissions:

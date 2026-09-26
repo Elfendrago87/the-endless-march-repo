@@ -1,6 +1,6 @@
 # Changelog
 
-Every version of the game, newest first. Each version is tagged in git (`v0.1.0` … `v0.8.0`), and each has its Windows download (from 0.3.0 on) and a recorded demo on the Versions page of the website.
+Every build of the game, newest first. The first public release, **0.0.1**, is build 0.8.0; the builds before it are tagged in git (`v0.1.0` … `v0.8.0`).
 
 The game started out under the working title **SEEK** and was renamed **The Endless March: Journey to the End** in 0.4.0.
 
