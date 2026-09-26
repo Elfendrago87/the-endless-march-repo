@@ -2,4 +2,4 @@
 #   tag  commit  notes-file  attachment...
 # An attachment is a path, or path=name to publish it under another name.
 # build/release/The-Endless-March-Website.zip is made by tools/publish-releases.sh.
-v0.0.1 4089d955a4e643c7076aa88815346296c6536b6b MANUAL.md dist/The-Endless-March.exe=The-Endless-March-0.0.1.exe MANUAL.md=The-Endless-March-Manual.md CHANGELOG.md=The-Endless-March-Changelog.md build/release/The-Endless-March-Website.zip
+v0.0.1 41f647a6f9fedb238dd9d23ed045ec2cc65c98f4 MANUAL.md dist/The-Endless-March.exe=The-Endless-March-0.0.1.exe MANUAL.md=The-Endless-March-Manual.md CHANGELOG.md=The-Endless-March-Changelog.md build/release/The-Endless-March-Website.zip
