@@ -15,7 +15,6 @@ NAME="The Endless March"
 OUT="dist/$NAME"
 
 node tools/build.js
-cp dist/the-endless-march.html desktop/game.html
 
 (
   cd desktop
@@ -31,8 +30,6 @@ mv desktop/launcher.exe "$OUT/$NAME.exe"
 cp index.html "$OUT/game/"
 cp js/*.js "$OUT/game/js/"
 cp desktop/winres/icon.png "$OUT/game/icon.png"
-cp manifest.webmanifest "$OUT/game/"
-mkdir -p "$OUT/game/icons" && cp icons/*.png "$OUT/game/icons/"
 cat > "$OUT/README.txt" <<'TXT'
 THE ENDLESS MARCH: JOURNEY TO THE END
 

@@ -10,7 +10,7 @@
 // Attacks connect when their box overlaps in x/elevation AND the two actors
 // are within the attack's depth tolerance.
 
-const GAME_VERSION = '0.7.0';
+const GAME_VERSION = '0.8.0';
 const VIEW_W = 1280;
 const VIEW_H = 720;
 const ZOOM = 1.5;          // world units -> screen pixels (final wave pulls back)

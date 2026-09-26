@@ -517,7 +517,7 @@ class Player {
   updateNormal(dt, mx, mz) {
     const c = this.stats, I = Input;
     // running: double-tap a direction, or hold run (the Rogue's run key dashes instead)
-    const holdRun = (!this.cls.dash && I.isDown('run')) || I.touchRun;
+    const holdRun = !this.cls.dash && I.isDown('run');
     if (I.doubleTap && I.doubleTap === mx) this.running = true;
     if (holdRun && mx !== 0) this.running = true;
     if (mx === 0 || (this.running && mx !== this.runDir && this.runDir !== 0)) this.running = holdRun && mx !== 0;

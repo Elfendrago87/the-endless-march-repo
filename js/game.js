@@ -36,7 +36,7 @@ class Game {
     this.chain = 0; this.chainT = 0; this.bestChain = 0;
 
     const q = new URLSearchParams(location.search);
-    this.debug = q.has('debug') || !!window.SEEK_TEST_BUILD;
+    this.debug = q.has('debug');
     this.god = q.has('god');
     this.classKey = CLASS_ORDER.includes(q.get('class')) ? q.get('class') : 'warrior';
     this.selIndex = 0;
@@ -59,8 +59,6 @@ class Game {
     this.toTitle();
 
     Input.init(canvas);
-    Input.toView = (x, y) => ({ x: (x * this.dpr - this.viewX) / this.viewScale, y: (y * this.dpr - this.viewY) / this.viewScale });
-    Input.onTap = (x, y) => this.onTap(x, y);
     Input.onRawKey = (code) => {
       if (this.debug && code === 'KeyN') this.debugClearWave();
       if (this.debug && code === 'KeyH') { this.player.hp = this.player.maxHp; this.player.pots = PLAYER_CFG.maxPots; }
@@ -229,7 +227,6 @@ class Game {
 
   // ------------------------------------------------------------ step
   step(dt) {
-    Input.buttonsLive = this.pausable() || this.paused;
     if (Input.pressed.pause && this.pausable()) this.paused = !this.paused;
     if (this.paused) {
       if (Input.pressed.confirm) this.paused = false;
@@ -343,7 +340,6 @@ class Game {
     this.updateBlocks(dt, headBefore);
     this.updatePopups(dt);
     if (this.chainT > 0) { this.chainT -= dt; if (this.chainT <= 0) this.chain = 0; }
-    TouchLayout.rageReady = this.player.rage >= RAGE_CFG.max && this.player.rageT <= 0;
     if (this.magic) {
       // the world holds its breath while the spell is cast
       this.updateMagic(dt);
@@ -912,7 +908,6 @@ class Game {
     }
 
     this.drawHUD(ctx);
-    if (Input.touchMode) this.drawTouch(ctx);
     this.drawOverlayText(ctx);
 
     if (this.fadeIn > 0) {
@@ -922,7 +917,6 @@ class Game {
       ctx.globalAlpha = 1;
     }
     if (this.paused) this.drawPause(ctx);
-    if (Input.touchMode) this.drawRotateHint(ctx);
     ctx.restore();
 
     // Night inverts the world: white silhouettes in a black land.
@@ -1219,7 +1213,7 @@ class Game {
       ctx.fillRect(bx0, ry, rw * clamp(p.rage / RAGE_CFG.max, 0, 1), 10);
       if (full) {
         ctx.globalAlpha = a * (flash ? 1 : 0.4);
-        this.text(Input.touchMode ? 'TAP RAGE' : 'PRESS R', bx0 + rw + 12, y + 78, 11, { weight: 700, spacing: 2 });
+        this.text('PRESS R', bx0 + rw + 12, y + 78, 11, { weight: 700, spacing: 2 });
         ctx.globalAlpha = a;
       }
     }
@@ -1296,12 +1290,12 @@ class Game {
       this.text('THE ENDLESS MARCH', cx, 140, 60, { weight: 300, spacing: 16, align: 'center' });
       this.text('JOURNEY TO THE END', cx, 182, 18, { weight: 400, spacing: 12, align: 'center' });
       ctx.globalAlpha = a * (0.45 + 0.35 * Math.sin(this.time * 2.5));
-      this.text(Input.touchMode ? 'tap to begin' : 'press any key', cx, 226, 15, { spacing: 4, align: 'center' });
+      this.text('press any key', cx, 226, 15, { spacing: 4, align: 'center' });
       ctx.globalAlpha = a * 0.5;
       this.text('v' + GAME_VERSION, 16, 24, 11, { spacing: 2 });
-      if (window.SEEK_TEST_BUILD) {
+      if (this.debug) {
         ctx.globalAlpha = a * 0.6;
-        this.text('TEST BUILD   ·   N  skip wave   ·   H  heal + fill magic', cx, 30, 11, { spacing: 2, align: 'center' });
+        this.text('DEBUG   ·   N  skip wave   ·   H  heal + fill magic', cx, 30, 11, { spacing: 2, align: 'center' });
       }
       ctx.globalAlpha = a * 0.8;
       this.text('ARROWS / WASD  move      ←← / SHIFT  run (rogue: dash)      SPACE  jump      X / click  attack      F / right-click  back attack      V  magic      R  rage      P  pause',
@@ -1404,57 +1398,8 @@ class Game {
       }
     });
     ctx.globalAlpha = 0.45 + 0.35 * Math.sin(t * 2.5);
-    this.text(Input.touchMode ? 'tap a path to choose it - tap it again to begin the march' : '← →  choose        X / SPACE / ENTER  begin the march', cx, VIEW_H - 22, 13, { spacing: 3, align: 'center' });
+    this.text('← →  choose        X / SPACE / ENTER  begin the march', cx, VIEW_H - 22, 13, { spacing: 3, align: 'center' });
     ctx.globalAlpha = 1;
-  }
-
-  // Menu taps on touch screens.
-  onTap(x, y) {
-    if (this.state !== STATE.SELECT || this.stateT < 0.3) return;
-    const col = x < VIEW_W / 2 - 170 ? 0 : x > VIEW_W / 2 + 170 ? 2 : 1;
-    if (col === this.selIndex) Input.pressed.confirm = true;
-    else { this.selIndex = col; Sound.pickup(); }
-  }
-
-  // On-screen stick and buttons, drawn in the game's outline style.
-  drawTouch(ctx) {
-    ctx.save();
-    ctx.lineWidth = 2.5;
-    ctx.strokeStyle = INK;
-    if (Input.buttonsLive) {
-      const s = Input.stick, R = TouchLayout.stickR;
-      const ox = s.id !== null ? s.ox : 170, oy = s.id !== null ? s.oy : 560;
-      ctx.globalAlpha = s.id !== null ? 0.8 : 0.35;
-      ctx.fillStyle = PAPER;
-      ctx.beginPath(); ctx.arc(ox, oy, R, 0, TAU); ctx.fill(); ctx.stroke();
-      ctx.beginPath(); ctx.arc(s.id !== null ? s.x : ox, s.id !== null ? s.y : oy, 30, 0, TAU);
-      ctx.fillStyle = s.id !== null ? INK : PAPER;
-      ctx.fill(); ctx.stroke();
-      for (const b of TouchLayout.buttons) {
-        if (!TouchLayout.shown(b)) continue;
-        const down = Input.keyDown[b.action];
-        ctx.globalAlpha = down ? 0.9 : 0.5;
-        ctx.fillStyle = down ? INK : PAPER;
-        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill(); ctx.stroke();
-        let label = b.label;
-        if (b.action === 'run' && this.player.cls.dash) label = 'DASH';
-        ctx.globalAlpha = down ? 1 : 0.75;
-        this.text(label, b.x, b.y + 4, b.r > 50 ? 13 : 10, { weight: 700, spacing: 1, align: 'center', color: down ? PAPER : INK });
-      }
-    }
-    ctx.restore();
-  }
-
-  // Portrait phones: ask for landscape (drawn above everything else).
-  drawRotateHint(ctx) {
-    if (window.innerHeight > window.innerWidth) {
-      ctx.fillStyle = PAPER;
-      ctx.globalAlpha = 0.9;
-      ctx.fillRect(0, 250, VIEW_W, 200);
-      ctx.globalAlpha = 1;
-      this.text('TURN YOUR DEVICE SIDEWAYS', VIEW_W / 2, 350, 34, { weight: 300, spacing: 10, align: 'center' });
-      this.text('the march is played in landscape', VIEW_W / 2, 390, 16, { spacing: 3, align: 'center' });
-    }
   }
 
   drawPause(ctx) {

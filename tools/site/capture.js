@@ -1,5 +1,5 @@
 // Screenshots and recorded demos for the website.
-//   docs/img/shots/*.png     moments from the current version (docs/play/<CURRENT>)
+//   docs/img/shots/*.png     moments from the current version
 //   docs/media/demo-<v>.webm a recorded demo of every version, played by a bot
 //   docs/media/demo-<v>.jpg  its poster frame
 // Needs Playwright + Chromium (PLAYWRIGHT / CHROMIUM env vars override paths).
@@ -14,9 +14,10 @@ const mediaDir = path.join(root, 'docs', 'media');
 fs.mkdirSync(shotsDir, { recursive: true });
 fs.mkdirSync(mediaDir, { recursive: true });
 const launchOpts = process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {};
-const playUrl = (v, q) => 'file://' + path.join(root, 'docs', 'play', v, 'index.html') + (q ? '?' + q : '');
+// each version's game files, unpacked by tools/build-site.sh (not published)
+const playUrl = (v, q) => 'file://' + path.join(root, 'build', 'site-play', v, 'index.html') + (q ? '?' + q : '');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const CURRENT = '0.7.0';
+const CURRENT = '0.8.0';
 
 // A bot that plays any version. Injected into the page; drives Input directly.
 function installBot() {
@@ -164,16 +165,6 @@ async function shots(browser) {
   if (await waitFor(s.page, () => SEEK.state === 'DOOR' && SEEK.doorOpen > 0.45, null, 90000)) await shot('door', s.page);
   if (await waitFor(s.page, () => SEEK.state === 'ENDING' && SEEK.stateT > 6.5, null, 60000)) await shot('ending', s.page);
   await s.ctx.close();
-
-  // phone, landscape, touch controls showing
-  s = await open('god&class=rogue', { viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
-  await sleep(900);
-  await s.page.touchscreen.tap(420, 200); await sleep(400);
-  await s.page.touchscreen.tap(640, 200); await sleep(250); await s.page.touchscreen.tap(640, 200);
-  await s.page.evaluate(installBot);
-  await sleep(6000);
-  await shot('mobile', s.page);
-  await s.ctx.close();
 }
 
 // ---------------------------------------------------------------- demos
@@ -185,7 +176,6 @@ const DEMOS = [
   { v: '0.4.0', q: 'god&wave=6', classes: false },
   { v: '0.5.0', q: 'god&class=archer&wave=4', classes: true },
   { v: '0.6.0', q: 'god&class=warrior&wave=7', classes: true },
-  { v: '0.6.0-mobile', play: '0.6.0', q: 'god&class=rogue&wave=2', classes: true, mobile: true },
   // with the arrow shower from a power block, then rage
   { v: '0.7.0', q: 'god&class=archer&wave=4', classes: true, setup: () => { SEEK.player.grantPower('power'); setTimeout(() => { SEEK.player.rage = 100; }, 9000); } },
 ];
@@ -193,17 +183,11 @@ const DEMOS = [
 async function demo(browser, d) {
   const tmp = path.join(mediaDir, '.rec-' + d.v);
   fs.rmSync(tmp, { recursive: true, force: true });
-  const size = d.mobile ? { width: 844, height: 390 } : { width: 960, height: 540 };
-  const ctx = await browser.newContext(Object.assign({ viewport: size, recordVideo: { dir: tmp, size } },
-    d.mobile ? { isMobile: true, hasTouch: true, deviceScaleFactor: 1 } : {}));
+  const size = { width: 960, height: 540 };
+  const ctx = await browser.newContext({ viewport: size, recordVideo: { dir: tmp, size } });
   const page = await ctx.newPage();
-  await page.goto(playUrl(d.play || d.v, d.q));
-  if (d.mobile) {
-    await sleep(900);
-    await page.touchscreen.tap(420, 200); await sleep(700);
-    await page.touchscreen.tap(640, 200); await sleep(300); await page.touchscreen.tap(640, 200);
-    await page.evaluate(installBot);
-  } else await startGame(page, d.classes);
+  await page.goto(playUrl(d.v, d.q));
+  await startGame(page, d.classes);
   if (d.setup) {
     await waitFor(page, () => SEEK.state === 'WAVE', null, 10000);
     await page.evaluate(d.setup);

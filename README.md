@@ -4,11 +4,13 @@ A minimalist black-and-white belt-scroller in the spirit of Golden Axe, without 
 
 An outlined figure with an enormous sword walks a long white road and fights ten waves along the way. Everything with a body (the hero, the enemies, their weapons, the ruins and fortresses on the horizon) is drawn as a white shape with a black outline. After Wave 10, a monolith rises at the end of the road and its door opens onto blinding white light. What it means is up to the player.
 
-**Website:** the `docs/` folder is a GitHub Pages site with the full guide, art notes, the planned story mode, the changelog, every version to download, and a playable and recorded demo of each. See [Publishing the site](#publishing-the-site).
+**Website:** the `docs/` folder is a GitHub Pages site with the full guide, art notes, the planned story mode, the changelog, the Windows download of every version, and a recorded demo of each. See [Publishing the site](#publishing-the-site).
 
 ## Play
 
-The current version is **0.7.0**. See [CHANGELOG.md](CHANGELOG.md) for every version. Every version is also published on the repository's **Releases** page with its builds attached (by `.github/workflows/releases.yml`, from the list in `tools/releases.txt`).
+The current version is **0.8.0**. The game is made for Windows. See [CHANGELOG.md](CHANGELOG.md) for every version. Every version is also published on the repository's **Releases** page with its builds attached (by `.github/workflows/releases.yml`, from the list in `tools/releases.txt`).
+
+Play with the keyboard, the mouse or a gamepad.
 
 ### Windows
 
@@ -31,45 +33,9 @@ The launcher's source is in `desktop/`, a small Go program. To rebuild the bundl
 ./tools/build-exe.sh
 ```
 
-### Android
+### Developing
 
-Install `dist/The-Endless-March-Android.apk` on an Android 7.0+ phone or tablet (allow installs from your browser or file manager when asked). It is a small full-screen landscape app with the whole game inside, so it plays offline. The Back button pauses.
-
-To rebuild it (needs a JDK, the Android build-tools and one platform's `android.jar`; no Gradle or Android Studio):
-
-```sh
-ANDROID_BUILD_TOOLS=/path/to/build-tools/35.0.1 \
-ANDROID_JAR=/path/to/platforms/android-35/android.jar \
-./tools/build-android.sh
-```
-
-The first build creates a signing key at `~/.android/endless-march.jks`. Keep it: Android only installs an update over an earlier install if both are signed with the same key.
-
-### iPhone and iPad
-
-- **Home-screen app:** open the game's web page in Safari, tap Share → **Add to Home Screen**. It then launches full screen and plays offline.
-- **Native app:** `mobile/ios/` is an Xcode project (defined with XcodeGen) that wraps the game in a WKWebView. It can only be built on a Mac: run `./tools/prepare-ios.sh`, then `cd mobile/ios && xcodegen && open EndlessMarch.xcodeproj`, choose your team under Signing, and run it on a device.
-
-### Touch controls
-
-On a phone or tablet the controls appear on screen the first time you touch it: a floating stick on the left half (push it to the rim to run) and ATTACK, JUMP, BACK, RUN (DASH for the Rogue) and MAGIC buttons on the right, plus II to pause. A RAGE button appears when the rage meter is full. Tap a path on the class screen to choose it, and tap it again to start. Play in landscape.
-
-### In a browser
-
-Open `index.html` in a modern browser. There is no build step and nothing to install.
-
-`dist/the-endless-march.html` is the whole game in one self-contained HTML file. `dist/the-endless-march-test.html` is the same file with the debug keys switched on: `N` clears the current wave and `H` heals you and fills your magic. Rebuild both after changing the code:
-
-```sh
-node tools/build.js          # dist/the-endless-march.html
-node tools/build.js --test   # dist/the-endless-march-test.html
-```
-
-If your browser blocks local files, serve the folder instead:
-
-```sh
-npx http-server .     # or: python3 -m http.server
-```
+The game itself is plain JavaScript drawn on a canvas (`index.html` and `js/`), with no build step. While working on it, open `index.html` in Chromium or Edge (or serve the folder with `python3 -m http.server`) and use the debug URL flags below; `./tools/build-exe.sh` packages it into the Windows launcher.
 
 ## Classes
 
@@ -167,6 +133,9 @@ Waves are defined only as data. Each wave sets a camera `lockX` on the road and 
 
 ### Debug URL flags
 
+For development, when opening `index.html` directly:
+
+
 - `?wave=N` starts at wave N. Running out of lives then restarts at wave N.
 - `?god` makes you invulnerable.
 - `?class=warrior|archer|rogue` pre-selects a class on the selection screen.
@@ -176,4 +145,4 @@ Waves are defined only as data. Each wave sets a camera `lockX` on the road and 
 
 The website lives in `docs/`. To publish it with GitHub Pages: in the repository's **Settings → Pages**, set *Source* to *Deploy from a branch*, then choose the branch and the `/docs` folder. (GitHub Pages for a private repository needs a paid GitHub plan; otherwise make the repository public.)
 
-`tools/build-site.sh` rebuilds everything under `docs/` that comes from the game itself: a playable copy and downloads for every version, the recorded demos, and the screenshots and figure drawings used on the pages.
+`tools/build-site.sh` rebuilds everything under `docs/` that comes from the game itself: the Windows download of every version, the recorded demos, and the screenshots and figure drawings used on the pages.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Builds docs/changelog.html from CHANGELOG.md, adding each version's demo,
-a link to play it, and its downloads (from docs/media and docs/downloads)."""
+"""Builds docs/changelog.html from CHANGELOG.md, adding each version's demo
+and its Windows download (from docs/media and docs/downloads)."""
 import html, os, re
 
 ROOT = os.path.join(os.path.dirname(__file__), '..', '..')
@@ -19,9 +19,6 @@ def human(n):
 KIND = [
     ('Windows.zip', 'Windows (zip: launcher + game folder)'),
     ('.exe', 'Windows (single .exe)'),
-    ('Android.apk', 'Android (.apk)'),
-    ('-web.zip', 'Web build (zip of the game files)'),
-    ('.html', 'Single HTML file'),
 ]
 
 def downloads(v):
@@ -37,13 +34,10 @@ def downloads(v):
 
 def media(v):
     out = []
-    for suffix, cap in (('', ''), ('-mobile', ' (phone, touch controls)')):
-        base = f'media/demo-{v}{suffix}'
-        if os.path.exists(os.path.join(DOCS, base + '.webm')):
-            out.append(f'<video controls preload="none" poster="{base}.jpg" src="{base}.webm"></video>'
-                       f'<p class="muted" style="margin:6px 0 14px">Recorded demo{cap}.</p>')
-    if os.path.exists(os.path.join(DOCS, 'play', v, 'index.html')):
-        out.append(f'<p><a class="btn" href="play/{v}/index.html">Play {v} in the browser</a></p>')
+    base = f'media/demo-{v}'
+    if os.path.exists(os.path.join(DOCS, base + '.webm')):
+        out.append(f'<video controls preload="none" poster="{base}.jpg" src="{base}.webm"></video>'
+                   f'<p class="muted" style="margin:6px 0 14px">Recorded demo.</p>')
     return ''.join(out) + downloads(v)
 
 def main():

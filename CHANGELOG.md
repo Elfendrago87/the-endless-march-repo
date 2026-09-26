@@ -1,8 +1,19 @@
 # Changelog
 
-Every version of the game, newest first. Each version is tagged in git (`v0.1.0` … `v0.7.0`), and each has its downloads, a playable copy and a recorded demo on the Versions page of the website.
+Every version of the game, newest first. Each version is tagged in git (`v0.1.0` … `v0.8.0`), and each has its Windows download (from 0.3.0 on) and a recorded demo on the Versions page of the website.
 
 The game started out under the working title **SEEK** and was renamed **The Endless March: Journey to the End** in 0.4.0.
+
+---
+
+## 0.8.0 (2026-09-26): Windows only
+
+The game is now made for Windows only.
+
+- **Removed the Android app, the iPhone and iPad versions and the touch controls.** The on-screen stick and buttons, the "turn your device sideways" notice, the home-screen web-app files (manifest, offline cache, app icons) and the Android and iOS projects and build scripts are gone.
+- **Removed the browser versions:** the single-file HTML build, its test build, and the playable copies and web downloads on the website. The Windows launcher still carries a built-in single-file copy of the game as its fallback.
+- The website and the GitHub releases now offer the Windows download only (0.3.0 onwards). Versions 0.1.0 to 0.2.1 had no Windows build, so their releases carry the source only.
+- The debug keys (N clears a wave, H heals) now show their hint on the title screen when the game is opened with `?debug`.
 
 ---
 
