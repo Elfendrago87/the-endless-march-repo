@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Builds docs/changelog.html from CHANGELOG.md, adding each version's demo
-and its Windows download (from docs/media and docs/downloads)."""
+"""Builds docs/changelog.html from CHANGELOG.md, adding the recorded demo
+(docs/media/demo.webm) and the download link from the GitHub release."""
 import html, os, re
 
 ROOT = os.path.join(os.path.dirname(__file__), '..', '..')
@@ -13,32 +13,16 @@ def inline(s):
     s = re.sub(r'\[(.+?)\]\((.+?)\)', r'<a href="\2">\1</a>', s)
     return s
 
-def human(n):
-    return f'{n / 1048576:.1f} MB' if n >= 1048576 else f'{max(1, round(n / 1024))} KB'
-
-KIND = [
-    ('Windows.zip', 'Windows (zip: launcher + game folder)'),
-    ('.exe', 'Windows (single .exe)'),
-]
-
-def downloads(v):
-    d = os.path.join(DOCS, 'downloads', v)
-    if not os.path.isdir(d):
-        return ''
-    items = []
-    for name in sorted(os.listdir(d)):
-        label = next((l for k, l in KIND if name.endswith(k)), 'Download')
-        size = human(os.path.getsize(os.path.join(d, name)))
-        items.append(f'<li><a href="downloads/{v}/{name}">{html.escape(name)}</a><br><span class="muted">{label}, {size}</span></li>')
-    return '<ul class="downloads">' + ''.join(items) + '</ul>'
+RELEASES = 'https://github.com/Elfendrago87/the-endless-march-repo/releases/download'
 
 def media(v):
     out = []
-    base = f'media/demo-{v}'
+    base = 'media/demo'
     if os.path.exists(os.path.join(DOCS, base + '.webm')):
         out.append(f'<video controls preload="none" poster="{base}.jpg" src="{base}.webm"></video>'
                    f'<p class="muted" style="margin:6px 0 14px">Recorded demo.</p>')
-    return ''.join(out) + downloads(v)
+    out.append(f'<p><a class="btn solid" href="{RELEASES}/v{v}/The-Endless-March-{v}.exe">Download The-Endless-March-{v}.exe</a></p>')
+    return ''.join(out)
 
 def main():
     md = open(os.path.join(ROOT, 'CHANGELOG.md'), encoding='utf-8').read()

@@ -1,133 +1,23 @@
 # Changelog
 
-Every build of the game, newest first. **0.0.1** is the first public release. The development builds before it are numbered 0.1.0 to 0.7.0 and tagged in git (`v0.1.0` … `v0.7.0`); 0.0.1 was developed as build 0.8.0, tagged `v0.8.0`.
+## 0.0.1 (2026-09-26): First release
 
-The game started out under the working title **SEEK** and was renamed **The Endless March: Journey to the End** in 0.4.0.
+The first public release of **The Endless March: Journey to the End**, for Windows.
 
----
+### The game
+- A black-and-white belt-scroller in the spirit of Golden Axe, without the mounts: walk one long road across the plain, the ruins, the fortress and the void, and fight ten waves along the way. After Wave 10, a monolith rises and its door opens onto blinding white light.
+- **Three classes:** the **Warrior** (100 HP, an enormous sword; the third slash of the combo sends a sword wave across every lane), the **Archer** (90 HP; every third shot is a fire arrow that pierces, knocks down and burns) and the **Rogue** (85 HP; twin daggers that cut twice, and an untouchable dash).
+- **The lane rule:** you only hit what shares your lane. The Warrior's sword wave, magic and some powers reach every lane.
+- **Combat:** three-hit combos, running attacks, jump attacks, back attacks, grab, knee and throw, parrying thrown axes, knockdowns.
+- **Nine enemy types** plus thieves, each with a readable windup: Seeker, Chaser, Brute, Axe thrower, Flyer, Splitter, Shielder, Assassin and Elite. Enemies take turns attacking and climb onto ledges after you.
+- **Ledges** along the road, some of them moving, and thirteen **power blocks** holding powerups: hearts, force fields, rage bursts and a power for each class (multi-lane strikes, an arrow shower, flight).
+- A **rage meter** that fills as you fight and unleashes 8 seconds of harder, faster, unstoppable fighting.
+- **Magic pots** knocked loose from thieves; casting spends them all at once.
+- **Nights** after waves 3 and 6, when the world inverts and thieves come for your sack.
+- **Three lives**, health bars for enemies, a boss bar for the Brute and the Elite, and a hit counter.
+- Everything is drawn as white shapes with black outlines; procedural sound; keyboard, mouse and gamepad.
 
-## 0.0.1 (2026-09-26): First release, Windows only
-
-The first public release. It was developed as build 0.8.0 and renumbered 0.0.1; the title screen now shows **v0.0.1**. The game is now made for Windows only, and ships as a single file.
-
-- **One `.exe`.** The download is now just `The-Endless-March-0.0.1.exe`, with the whole game built in: no zip, no `game/` folder, nothing to install. Run it and the game opens in its own window.
-- **Removed the Android app, the iPhone and iPad versions and the touch controls.** The on-screen stick and buttons, the "turn your device sideways" notice, the home-screen web-app files (manifest, offline cache, app icons) and the Android and iOS projects and build scripts are gone.
-- **Removed the browser versions:** the single-file HTML build, its test build, and the playable copies and web downloads on the website.
-- The website and the GitHub releases now offer the Windows download only (0.3.0 onwards; a zip for 0.4.0 to 0.7.0). Versions 0.1.0 to 0.2.1 had no Windows build, so their releases carry the source only.
-- The debug keys (N clears a wave, H heals) now show their hint on the title screen when the game is opened with `?debug`.
-
----
-
-## 0.7.0 (2026-09-25): Ledges, power blocks and rage
-
-### Platforms
-- **Ledges.** Raised platforms along the whole road, drawn as outlined slabs on legs: 14 of them, three that move (two slide back and forth, one rises and sinks). Jump up through a ledge from below and land on top. A moving ledge carries whoever stands on it. Shadows fall on the ledge you're above, and a ledge fades out while you stand behind it.
-- Enemies climb up after you: walkers hop onto a ledge when you're on it and they're close. Flyers stay in the air. Thrown axes are thrown from the thrower's own height.
-- Arrows stick into ledges, and falling pickups land on them.
-- Grabs only work at the same height, and a grabbed enemy is held at your height.
-
-### Power blocks and powerups
-- **Power blocks:** 13 floating outlined blocks marked with a star. Jump into one from below, strike it with the sword or daggers, or shoot it, and it pops out its powerup, then stays behind as an empty block you can stand on. They refill every run.
-- **Heart:** +40 HP.
-- **Force field** (hexagon): a dashed bubble around you that absorbs the next 3 hits, for up to 16 seconds.
-- **Rage burst** (spiked star): fills the rage meter.
-- **Class capsule:** each class gets its own power.
-  - Warrior, **multi-lane strike**: for 12 seconds every sword hit lands in every lane.
-  - Archer, **arrow shower**: for 12 seconds every shot also brings six arrows down across every lane ahead (fire arrows bring down fire).
-  - Rogue, **flight**: 6 seconds of flight to use within 25 seconds. Hold Jump in the air to rise (well above the height of a jump) and steer freely. Outlined wings.
-- Enemies drop a random heart, force field or capsule 8% of the time; Brutes and the Elite always drop one.
-- Each pickup shows its name above you as you take it.
-
-### Rage
-- **Rage meter.** It fills as you land hits (2.5 each), make kills (8) and take damage. When it's full, the HUD flashes PRESS R (or a RAGE button appears on touch screens).
-- **Rage** (R / E / I, gamepad LB or LT): 8 seconds of 1.5× damage (arrows and the sword wave too), heavier knockback, 15% faster movement and 30% less damage taken, and hits no longer stagger you or knock you down. An outlined spiky aura shows it.
-
-### Health bars and HUD
-- Enemy health bars appear above an enemy for a few seconds after it is hit.
-- A boss bar at the bottom of the screen for the Brute and the Elite.
-- A hit counter at the top right: your chain of hits, reset when you're hurt or stop hitting for two seconds.
-- The HUD adds the rage meter and timers for the force field (with its remaining hits), the class power and the Rogue's flight fuel.
-- The pause screen lists rage, blocks and ledges.
-
----
-
-## 0.6.0 (2026-09-25): Lanes, the sword wave, and phones
-
-### Combat
-- **The lane rule.** You now only hit what shares your lane. Every player attack uses the same lane width (`LANE` in `js/data.js`); before this, attacks had tolerances between 14 and 26, and the back attacks reached noticeably further than the combos.
-- **Sword wave (Warrior).** The third slash of the Warrior's combo releases a crescent of force that rolls forward about 400 units along the whole road. It is the one attack that crosses lanes: it hits anything on the ground it passes, in any lane, for 12 damage and a stagger. High flyers pass over it, and a raised shield still blocks it.
-- **Archer.** The lane-snapping aim assist from 0.5.0 is gone: arrows keep to the lane you shoot from. The bow still tilts up at an enemy in the air, but only if it is in your lane. The running attack no longer fans three arrows across the lanes; it is now one heavy piercing shot (16 damage, knockdown).
-- Thrown bodies only bowl over enemies in the same lane.
-
-### Phones and tablets
-- **Touch controls:** a floating stick on the left half of the screen (push it to the rim to run) and ATTACK, JUMP, BACK, RUN/DASH and MAGIC buttons on the right, with II to pause. The class screen can be tapped. Controls appear the first time the screen is touched.
-- A "turn your device sideways" notice in portrait.
-- **Android app** (`dist/The-Endless-March-Android.apk`, Android 7.0+): a full-screen landscape WebView app with the game's files inside; plays offline, keeps the screen awake, and the Back button pauses. Built by `tools/build-android.sh` with the Android build-tools directly (no Gradle).
-- **iPhone / iPad:** the game is now an installable web app (manifest, offline service worker, home-screen icons), so *Add to Home Screen* in Safari gives a full-screen offline app. `mobile/ios/` adds an Xcode project (XcodeGen) wrapping the game in a WKWebView, to build on a Mac.
-- Page is locked against pinch-zoom, scrolling and text selection on touch screens.
-
-### Other
-- Version number on the title and pause screens.
-- The pause screen explains the lane rule.
-- Enemy behaviour code tidied and renamed for clarity.
-- The app icon generator can render any size (used for the Android and home-screen icons).
-- The website in `docs/`: guide, art style, planned story mode, changelog, downloads and demos for every version.
-
----
-
-## 0.5.0 (2026-09-25): Three paths
-
-- **Class select screen** ("Choose your path") after the title. The chosen class carries over when a run restarts; `?class=` pre-selects one.
-- **Archer** (90 HP). Arrows fly down the lane, stick in the ground and glance off shields. The combo is arrow, arrow, **fire arrow**: it pierces, knocks down and sets enemies burning (4 damage every half second for about two seconds, drawn as outlined flames). An air shot angles down at the floor; the running attack fanned three arrows across the lanes. Hood and quiver.
-- **Rogue** (85 HP). Twin daggers: every press is a **twin strike** (two hit windows), and the third press is a knockdown cross cut. Shift/C is the **evasive dash** from 0.1.0, back again, now in any of eight directions with brief invulnerability and one air dash. Attacking out of a dash or a run is the **dash twin strike**, which cuts through the enemy line while you can't be hit. Headband tails.
-- Attacks can now have several hit windows and can fire projectiles instead of using a sword hitbox. Each class sets its own HP and speed, and leaves its own weapon behind when it dies.
-- Balancing from bot runs: an aim assist made the Archer's arrows settle into the nearest lane in front (removed again in 0.6.0), arrows fly lower so short enemies can be hit, and Archer HP went from 80 to 90.
-
----
-
-## 0.4.0 (2026-09-25): The Endless March
-
-- **Renamed** from SEEK to **The Endless March: Journey to the End**: title screen, ending, window title, executable name and details.
-- **Outline art.** Everything with a body (figures, enemies, weapons, projectiles, pickups, horizon structures, the door monolith, magic spikes, rocks) is now a white shape with a black outline instead of a solid black silhouette. Thick limbs are outlined tubes, thin ones plain sticks, and a hit flashes the body solid black. Shadows and hit sparks stay solid.
-- **Windows bundle.** The release is now a folder: the launcher `.exe`, a `game/` folder with the game's files, and a `README.txt`, zipped as `The-Endless-March-Windows.zip`. The launcher serves the `game/` folder and falls back to a built-in copy if the folder is missing.
-- New outlined-sword app icon.
-
----
-
-## 0.3.0 (2026-09-25): A Windows app
-
-- **`SEEK.exe`**: a small native Windows program (written in Go, cross-compiled) with the whole game built in. It serves the game on 127.0.0.1 and opens it in its own Edge or Chrome app window with a private profile, falling back to the default browser, and closes itself when the game window closes. F11 toggles fullscreen.
-- Icon, version details and high-DPI support built into the executable.
-
----
-
-## 0.2.1 (2026-09-25): Single-file builds
-
-- The whole game can be built into one self-contained HTML file (`tools/build.js`), plus a test build with debug keys switched on (N skips a wave, H heals and fills magic).
-
----
-
-## 0.2.0 (2026-09-25): Onto the road
-
-A rework from a side-view platformer into a belt-scroller in the spirit of Golden Axe, without the mounts.
-
-- **Depth:** you walk into and out of the screen as well as left and right; attacks only land on targets near your depth. Shadows, back-to-front drawing.
-- **One long road** instead of separate arenas. The camera locks at each wave; when it is cleared, **GO →** sends you on. Four stretches of scenery: plain, ruins, fortress, and the void for Wave 10.
-- **New moves:** run (double-tap or hold Shift), running attack, knockdown jump attack, back attack that hits both sides, grab → knee → throw (thrown bodies knock others down).
-- **Magic pots** dropped by thieves; casting spends every pot for an eruption of spikes across the screen.
-- **Knockdowns** for you and enemies; **3 lives**, and standing back up after a fall knocks nearby enemies away.
-- **Night rests** after waves 3 and 6: the world inverts and thieves come for your pots.
-- Enemies take turns attacking (attack tokens) and circle while they wait; they walk in from both screen edges or rise from the ground.
-- Removed: platforms and the evasive dash (it returns for the Rogue in 0.5.0).
-
----
-
-## 0.1.0 (2026-09-25): SEEK
-
-The first playable version: a minimalist black-and-white side-view wave-combat platformer.
-
-- A black figure with an oversized sword: run, jump, an evasive dash with invulnerability, a three-hit combo (15 / 18 / 28), an air attack, hit-stop, knockback and screen shake.
-- Nine enemy types with readable windups: Seeker, Chaser, Brute, Ranged, Flyer, Splitter, Shielder, Assassin, Elite.
-- Ten waves across four arenas, defined as data.
-- After Wave 10 a door rises and fills the screen with white light. The ending leaves its meaning to the player.
-- Death restarts the run from Wave 1.
+### The download
+- **One `.exe`:** `The-Endless-March-0.0.1.exe`, with the whole game built in. Nothing to unzip or install: run it and the game opens in its own window. F11 toggles fullscreen.
+- Needs Windows 10 or 11 with Microsoft Edge (built in) or Google Chrome.
+- The release also carries the manual, this changelog and the game's website for reading offline.

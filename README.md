@@ -4,11 +4,11 @@ A minimalist black-and-white belt-scroller in the spirit of Golden Axe, without 
 
 An outlined figure with an enormous sword walks a long white road and fights ten waves along the way. Everything with a body (the hero, the enemies, their weapons, the ruins and fortresses on the horizon) is drawn as a white shape with a black outline. After Wave 10, a monolith rises at the end of the road and its door opens onto blinding white light. What it means is up to the player.
 
-**Website:** the `docs/` folder is a GitHub Pages site with the full guide, art notes, the planned story mode, the changelog, the Windows download of every version, and a recorded demo of each. See [Publishing the site](#publishing-the-site).
+**Website:** the `docs/` folder is a GitHub Pages site with the full guide, art notes, the planned story mode, the changelog and a recorded demo. See [Publishing the site](#publishing-the-site).
 
 ## Play
 
-The current version is **0.0.1**, the first release. The game is made for Windows. See [CHANGELOG.md](CHANGELOG.md) for every version. The game is published on the repository's **Releases** page as release **0.0.1**: the `.exe`, the full manual ([MANUAL.md](MANUAL.md)), the changelog and the website for offline reading. `.github/workflows/releases.yml` keeps it in sync from `tools/releases.txt`.
+The current version is **0.0.1**, the first release. The game is made for Windows. See [CHANGELOG.md](CHANGELOG.md) for what is in it. The game is published on the repository's **Releases** page as release **0.0.1**: the `.exe`, the full manual ([MANUAL.md](MANUAL.md)), the changelog and the website for offline reading. `.github/workflows/releases.yml` keeps it in sync from `tools/releases.txt`.
 
 Play with the keyboard, the mouse or a gamepad.
 
@@ -138,4 +138,4 @@ For development, when opening `index.html` directly:
 
 The website lives in `docs/`. To publish it with GitHub Pages: in the repository's **Settings → Pages**, set *Source* to *Deploy from a branch*, then choose the branch and the `/docs` folder. (GitHub Pages for a private repository needs a paid GitHub plan; otherwise make the repository public.)
 
-`tools/build-site.sh` rebuilds everything under `docs/` that comes from the game itself: the Windows download of every version, the recorded demos, and the screenshots and figure drawings used on the pages.
+`tools/build-site.sh` rebuilds everything under `docs/` that comes from the game itself: the changelog page, the recorded demo, and the screenshots and figure drawings used on the pages.

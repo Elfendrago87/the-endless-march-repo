@@ -2,9 +2,9 @@
 
 A black-and-white belt-scroller in the spirit of Golden Axe, without the mounts. An outlined figure walks a long white road and fights ten waves along the way. After the tenth, a monolith rises at the end of the road and its door opens onto blinding white light. What that light means is up to you.
 
-This is the complete manual: how to run the game, how it plays, the three classes, every enemy and wave, the art style, the planned story mode, and how the game got here.
+This is the complete manual: how to run the game, how it plays, the three classes, every enemy and wave, the art style, and the planned story mode.
 
-**Contents:** [Getting started](#getting-started) · [Controls](#controls) · [How a run goes](#how-a-run-goes) · [The lane rule](#the-lane-rule) · [The three paths](#the-three-paths) · [Combat](#combat) · [Ledges, blocks, powerups and rage](#ledges-blocks-powerups-and-rage) · [Magic, thieves and food](#magic-thieves-and-food) · [Nights](#nights) · [Health, lives and falling](#health-lives-and-falling) · [Enemies](#enemies) · [The ten waves](#the-ten-waves) · [The door](#the-door) · [Tips](#tips) · [The screen](#the-screen) · [Art style](#art-style) · [Story mode (planned)](#story-mode-planned) · [How the game got here](#how-the-game-got-here) · [Files in this release](#files-in-this-release)
+**Contents:** [Getting started](#getting-started) · [Controls](#controls) · [How a run goes](#how-a-run-goes) · [The lane rule](#the-lane-rule) · [The three paths](#the-three-paths) · [Combat](#combat) · [Ledges, blocks, powerups and rage](#ledges-blocks-powerups-and-rage) · [Magic, thieves and food](#magic-thieves-and-food) · [Nights](#nights) · [Health, lives and falling](#health-lives-and-falling) · [Enemies](#enemies) · [The ten waves](#the-ten-waves) · [The door](#the-door) · [Tips](#tips) · [The screen](#the-screen) · [Art style](#art-style) · [Story mode (planned)](#story-mode-planned) · [Files in this release](#files-in-this-release)
 
 ---
 
@@ -225,27 +225,11 @@ The same road, told in chapters, with almost no words. It adds places, not power
 - **How it plays.** Chapters save at camps. Same combat. No experience, gear or skill trees. One run per class, each short enough for an evening.
 - **What it will never say:** what the walkers wanted, what is behind the door, or whether getting it is good.
 
-## How the game got here
-
-This is the first public release. Before it, the game went through these development builds; the full notes are in the attached changelog.
-
-| Build | What it added |
-|---|---|
-| 0.1.0 | **SEEK**: a black-and-white side-view wave-combat platformer. Nine enemy types, ten waves, the door. |
-| 0.2.0 | Reworked into a Golden Axe-style belt-scroller: depth, one long road, run, grab and throw, magic pots, nights, lives. |
-| 0.2.1 | Single-file builds. |
-| 0.3.0 | A Windows app. |
-| 0.4.0 | Renamed **The Endless March: Journey to the End**; outline art. |
-| 0.5.0 | The Archer and the Rogue, and the class select screen. |
-| 0.6.0 | The lane rule and the Warrior's sword wave. |
-| 0.7.0 | Ledges, power blocks, powerups, rage, health bars. |
-| **0.0.1** | This release (developed as build 0.8.0): Windows only, shipped as a single `.exe`. |
-
 ## Files in this release
 
 | File | What it is |
 |---|---|
 | `The-Endless-March-0.0.1.exe` | The game. Download and run it. |
 | `The-Endless-March-Manual.md` | This manual. |
-| `The-Endless-March-Changelog.md` | The full development changelog, build by build. |
-| `The-Endless-March-Website.zip` | The game's website for offline reading: guide, art, story mode and versions pages, with screenshots, figure drawings and recorded demos. Unzip it and open `index.html`. |
+| `The-Endless-March-Changelog.md` | The changelog: what is in this release. |
+| `The-Endless-March-Website.zip` | The game's website for offline reading: guide, art, story mode and changelog pages, with screenshots, figure drawings and a recorded demo. Unzip it and open `index.html`. |

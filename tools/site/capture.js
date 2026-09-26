@@ -1,9 +1,9 @@
 // Screenshots and recorded demos for the website.
 //   docs/img/shots/*.png     moments from the current version
-//   docs/media/demo-<v>.webm a recorded demo of every version, played by a bot
-//   docs/media/demo-<v>.jpg  its poster frame
+//   docs/media/demo.webm     a recorded demo, played by a bot
+//   docs/media/demo.jpg      its poster frame
 // Needs Playwright + Chromium (PLAYWRIGHT / CHROMIUM env vars override paths).
-//   node tools/site/capture.js [shots|demos] [version, to record one demo]
+//   node tools/site/capture.js [shots|demo]
 const { chromium } = require(process.env.PLAYWRIGHT || 'playwright');
 const fs = require('fs');
 const path = require('path');
@@ -14,12 +14,11 @@ const mediaDir = path.join(root, 'docs', 'media');
 fs.mkdirSync(shotsDir, { recursive: true });
 fs.mkdirSync(mediaDir, { recursive: true });
 const launchOpts = process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {};
-// each version's game files, unpacked by tools/build-site.sh (not published)
-const playUrl = (v, q) => 'file://' + path.join(root, 'build', 'site-play', v, 'index.html') + (q ? '?' + q : '');
+// the game's files, copied by tools/build-site.sh (not published)
+const playUrl = (q) => 'file://' + path.join(root, 'build', 'site-play', 'current', 'index.html') + (q ? '?' + q : '');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const CURRENT = '0.8.0'; // the build released as 0.0.1
 
-// A bot that plays any version. Injected into the page; drives Input directly.
+// A bot that plays the game. Injected into the page; drives Input directly.
 function installBot() {
   if (window.__bot) return;
   window.__bot = true;
@@ -32,27 +31,17 @@ function installBot() {
     if (g.state === 'PLAYER_DEAD' || g.state === 'START' || g.state === 'ENDING') { Input.anyPressed = true; return; }
     if (g.state === 'ADVANCE') { K.right = true; return; }
     if (g.state === 'DOOR') { K.right = p.cx < g.stage.door.x - 10; K.up = true; return; }
-    const belt = p.z !== undefined;
     let best = null, bd = 1e9;
     for (const e of g.enemies) {
       if (!e.active || e.state === 'spawn' || e.dying || e.state === 'dead') continue;
-      const d = Math.abs(e.cx - p.cx) + (belt ? Math.abs(e.z - p.z) * 2 : Math.abs(e.y - p.y) * 0.5);
+      const d = Math.abs(e.cx - p.cx) + Math.abs(e.z - p.z) * 2;
       if (d < bd) { bd = d; best = e; }
     }
-    if (!best) { if (!belt) K.right = Math.random() < 0.3; return; }
+    if (!best) return;
     const dx = best.cx - p.cx;
-    if (!belt) {
-      // 0.1.0: the side-view platformer
-      if (Math.abs(dx) > 70) (dx > 0 ? K.right = true : K.left = true);
-      else if ((dx > 0) !== (p.facing > 0)) (dx > 0 ? K.right = true : K.left = true);
-      if (best.y < p.y - 60 && Math.abs(dx) < 140 && p.onGround) Input.pressed.jump = true;
-      if (best.state === 'windup' && Math.abs(dx) < 150 && Math.random() < 0.3) Input.pressed.dash = true;
-      if (Math.abs(dx) < 110 && Math.random() < 0.5) Input.pressed.attack = true;
-      return;
-    }
     const dz = best.z - p.z;
-    const cls = p.cls ? p.cls.key : 'warrior';
-    if (p.rage >= 100 && !(p.rageT > 0)) Input.pressed.rage = true;
+    const cls = p.cls.key;
+    if (p.rage >= 100 && p.rageT <= 0) Input.pressed.rage = true;
     if (dodge > 0) { dodge -= 0.05; dodgeDir > 0 ? K.down = true : K.up = true; return; }
     for (const e of g.enemies) {
       if (e.active && e.state === 'windup' && Math.abs(e.z - p.z) < 20 && Math.abs(e.cx - p.cx) < 240 && Math.random() < 0.25) {
@@ -100,7 +89,7 @@ async function shots(browser) {
   const open = async (q, opts) => {
     const ctx = await browser.newContext(Object.assign({ viewport: { width: 1280, height: 720 } }, opts || {}));
     const page = await ctx.newPage();
-    await page.goto(playUrl(CURRENT, q));
+    await page.goto(playUrl(q));
     return { ctx, page };
   };
   let s;
@@ -167,49 +156,36 @@ async function shots(browser) {
   await s.ctx.close();
 }
 
-// ---------------------------------------------------------------- demos
-const DEMOS = [
-  { v: '0.1.0', q: 'god&wave=3', classes: false },
-  { v: '0.2.0', q: 'god&wave=1', classes: false },
-  { v: '0.2.1', q: 'god&wave=5', classes: false },
-  { v: '0.3.0', q: 'god&wave=8', classes: false },
-  { v: '0.4.0', q: 'god&wave=6', classes: false },
-  { v: '0.5.0', q: 'god&class=archer&wave=4', classes: true },
-  { v: '0.6.0', q: 'god&class=warrior&wave=7', classes: true },
-  // with the arrow shower from a power block, then rage
-  { v: '0.7.0', q: 'god&class=archer&wave=4', classes: true, setup: () => { SEEK.player.grantPower('power'); setTimeout(() => { SEEK.player.rage = 100; }, 9000); } },
-];
+// ---------------------------------------------------------------- demo
+// The Archer with the arrow shower from a power block, then rage.
+const DEMO = { q: 'god&class=archer&wave=4', classes: true, setup: () => { SEEK.player.grantPower('power'); setTimeout(() => { SEEK.player.rage = 100; }, 9000); } };
 
 async function demo(browser, d) {
-  const tmp = path.join(mediaDir, '.rec-' + d.v);
+  const tmp = path.join(mediaDir, '.rec');
   fs.rmSync(tmp, { recursive: true, force: true });
   const size = { width: 960, height: 540 };
   const ctx = await browser.newContext({ viewport: size, recordVideo: { dir: tmp, size } });
   const page = await ctx.newPage();
-  await page.goto(playUrl(d.v, d.q));
+  await page.goto(playUrl(d.q));
   await startGame(page, d.classes);
   if (d.setup) {
     await waitFor(page, () => SEEK.state === 'WAVE', null, 10000);
     await page.evaluate(d.setup);
   }
   await sleep(14000);
-  await page.screenshot({ path: path.join(mediaDir, 'demo-' + d.v + '.jpg'), type: 'jpeg', quality: 80 });
+  await page.screenshot({ path: path.join(mediaDir, 'demo.jpg'), type: 'jpeg', quality: 80 });
   await sleep(14000);
   const video = page.video();
   await ctx.close();
-  fs.renameSync(await video.path(), path.join(mediaDir, 'demo-' + d.v + '.webm'));
+  fs.renameSync(await video.path(), path.join(mediaDir, 'demo.webm'));
   fs.rmSync(tmp, { recursive: true, force: true });
-  console.log('  demo', d.v);
+  console.log('  demo');
 }
 
 (async () => {
   const what = process.argv[2] || 'all';
   const browser = await chromium.launch(launchOpts);
   if (what === 'all' || what === 'shots') await shots(browser);
-  if (what === 'all' || what === 'demos') {
-    // three at a time
-    const list = process.argv[3] ? DEMOS.filter((d) => d.v === process.argv[3]) : DEMOS;
-    for (let i = 0; i < list.length; i += 3) await Promise.all(list.slice(i, i + 3).map((d) => demo(browser, d)));
-  }
+  if (what === 'all' || what === 'demo') await demo(browser, DEMO);
   await browser.close();
 })();
