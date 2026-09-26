@@ -2,8 +2,9 @@
 # Publishes every version in tools/releases.txt as a GitHub release: creates
 # the tag at the listed commit, uses that version's CHANGELOG.md section as the
 # notes, and attaches its Windows build from docs/downloads/<version>/ (if it
-# had one). Existing releases are brought in line: their notes are refreshed
-# and any attachment that is not that Windows build is removed.
+# had one). Existing releases are brought in line: their notes are refreshed,
+# any attachment that is not that Windows build is removed, and a missing one
+# is attached. Immutable releases are left as they are.
 # Run by .github/workflows/releases.yml.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -36,6 +37,13 @@ while read -r tag sha; do
       if [[ "$keep" != *" $asset "* ]]; then
         gh release delete-asset "$tag" "$asset" --yes
         echo "$tag: removed $asset"
+      fi
+    done
+    have=" $(gh release view "$tag" --json assets --jq '.assets[].name' | tr '\n' ' ') "
+    for f in "${files[@]}"; do
+      if [[ "$have" != *" $(basename "$f") "* ]]; then
+        gh release upload "$tag" "$f"
+        echo "$tag: attached $(basename "$f")"
       fi
     done
     echo "$tag: updated"
